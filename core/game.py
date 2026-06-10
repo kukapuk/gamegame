@@ -2,18 +2,10 @@ import pygame
 from core.settings import Settings
 from core.camera import Camera
 from entities.player import Player
+from entities.weapon import Weapon
 
 
 class Game:
-    """
-    Central game loop and renderer.
-
-    Responsibilities:
-      - create window & clock
-      - own the sprite groups
-      - run the main loop (event → update → draw)
-    """
-
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.screen = pygame.display.set_mode(
@@ -23,29 +15,36 @@ class Game:
         self.clock = pygame.time.Clock()
         self.running = True
 
-        # Sprite groups
+        # -- Sprite groups --
         self.all_sprites = pygame.sprite.Group()
+        self.bullets = pygame.sprite.Group() # отдельная группа для коллизий
 
-        # Entities
+        # -- Entities --
         spawn = (settings.screen_width // 2, settings.screen_height // 2)
-        self.player = Player(spawn, settings, groups=[self.all_sprites])
+        self.player = Player(spawn, settings, self.all_sprites)
 
-        # Camera
+        self.weapon = Weapon(
+            owner=self.player,
+            settings=settings,
+            bullet_group=self.bullets,
+            all_sprites=self.all_sprites,
+        )
+
+        # -- Camera --
         self.camera = Camera(settings)
-
-        # Debug flag (toggle with F1)
+        
         self.debug = False
 
-    # Main loop
+    # ------------------------------------------------------------------
 
     def run(self) -> None:
         while self.running:
-            dt = self.clock.tick(self.settings.fps) / 1000.0  # seconds
+            dt = self.clock.tick(self.settings.fps) / 1000.0
             self._handle_events()
             self._update(dt)
             self._draw()
 
-    # Loop phases
+    # ------------------------------------------------------------------
 
     def _handle_events(self) -> None:
         for event in pygame.event.get():
@@ -58,7 +57,14 @@ class Game:
                     self.debug = not self.debug
 
     def _update(self, dt: float) -> None:
-        self.all_sprites.update(dt)
+        self.player.update(dt)
+        self.bullets.update(dt)
+
+        self.weapon.update(dt, self.camera.get_offset())
+
+        if pygame.mouse.get_pressed()[0]:
+            self.weapon.try_shoot()
+
         self.camera.follow(self.player)
 
     def _draw(self) -> None:
@@ -70,12 +76,10 @@ class Game:
         pygame.display.flip()
 
     def _draw_grid(self) -> None:
-        """Faint grid so movement is clearly visible."""
         gs = self.settings.grid_size
         offset = self.camera.get_offset()
         w, h = self.settings.screen_width, self.settings.screen_height
 
-        # Starting tile (world coords), snapped to grid
         start_x = int(offset.x // gs) * gs
         start_y = int(offset.y // gs) * gs
 
@@ -94,7 +98,8 @@ class Game:
             y += gs
 
     def _draw_sprites(self) -> None:
-        for sprite in self.all_sprites:
+        # сначала пули (под игроком), потом игрок, потом оружие
+        for sprite in [*self.bullets.sprites(), self.player, self.weapon]:
             screen_rect = self.camera.apply(sprite.rect)
             self.screen.blit(sprite.image, screen_rect)
 
@@ -104,10 +109,10 @@ class Game:
             f"FPS: {self.clock.get_fps():.0f}",
             f"pos: ({self.player.pos.x:.0f}, {self.player.pos.y:.0f})",
             f"vel: ({self.player.velocity.x:.0f}, {self.player.velocity.y:.0f})",
-            f"facing: ({self.player.facing.x:.2f}, {self.player.facing.y:.2f})",
+            f"aim: ({self.weapon.aim_dir.x:.2f}, {self.weapon.aim_dir.y:.2f})",
+            f"bullets: {len(self.bullets)}",
         ]
         for i, line in enumerate(lines):
             surf = font.render(line, True, (180, 220, 180))
             self.screen.blit(surf, (10, 10 + i * 20))
-        # draw collision rect
         self.player.draw_debug(self.screen, self.camera.get_offset())

@@ -27,19 +27,18 @@ class Actor(pygame.sprite.Sprite):
 
         self.color = color
 
-        # Surface & rect — used by pygame sprite rendering
+        # Surface & rect
         self.image = pygame.Surface((size, size), pygame.SRCALPHA)
         self.image.fill(color)
         self.rect = self.image.get_rect(center=pos)
 
         # Float position for sub-pixel movement precision
-        # (rect stores ints, which causes drift at low speeds / high FPS)
         self.pos = pygame.math.Vector2(pos)
 
         # Velocity in pixels-per-second; subclasses write to this
         self.velocity = pygame.math.Vector2(0, 0)
 
-        # Stats — every actor has these; values set by subclasses
+        # Stats
         self.speed: float = 0.0
         self.alive: bool = True
 

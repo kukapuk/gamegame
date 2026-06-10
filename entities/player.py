@@ -39,4 +39,4 @@ class Player(Actor):
 
     def update(self, dt: float) -> None:
         self.handle_input()
-        super().update(dt)           # applies velocity * dt to position
+        super().update(dt) # applies velocity * dt to position
