@@ -81,6 +81,7 @@ class Game:
             (make_carbine(), (cx + 120, cy + 60)),
             (make_shotgun(), (cx - 140, cy + 80)),
             (make_sniper(),  (cx + 60,  cy - 120)),
+            (make_ammo(AmmoType.CARBINE, 90), (cx + 60,  cy - 180)),
         ]
         for item, pos in items:
             WorldItem(item=item, pos=pos, groups=[self.world_items])
@@ -198,8 +199,15 @@ class Game:
                 weapon_slots[self.player.active_weapon_slot].item = item
                 if old:
                     WorldItem(item=old, pos=self._nearby_world_item.world_pos,
-                              groups=[self.world_items])
+                            groups=[self.world_items])
                 picked = True
+        elif item.stackable:
+            remainder = self._pickup_stackable(item)
+            if remainder < item.stack_count:
+                picked = True
+                if remainder > 0:
+                    item.stack_count = remainder
+                    picked = False
         else:
             picked = self.player.backpack.add(item) or self.player.pouch.add(item)
 
@@ -207,6 +215,31 @@ class Game:
             self._nearby_world_item.kill()
             self._nearby_world_item = None
             self._sync_weapon()
+    
+    def _pickup_stackable(self, item) -> int:
+        remaining = item.stack_count
+        for inv in [self.player.backpack, self.player.pouch]:
+            for slot in inv.all_slots():
+                if remaining <= 0:
+                    break
+                if (slot.item and type(slot.item) == type(item)
+                        and hasattr(slot.item, 'ammo_type')
+                        and slot.item.ammo_type == item.ammo_type
+                        and slot.item.stack_count < slot.item.max_stack):
+                    space = slot.item.max_stack - slot.item.stack_count
+                    take  = min(space, remaining)
+                    slot.item.stack_count += take
+                    remaining -= take
+            if remaining <= 0:
+                break
+        if remaining > 0:
+            from items.ammo import AmmoItem
+            temp = AmmoItem(item.ammo_type, remaining)
+            for inv in [self.player.backpack, self.player.pouch]:
+                if inv.add(temp):
+                    remaining = 0
+                    break
+        return remaining
 
     def _update(self, dt: float) -> None:
         self.player.update(dt)

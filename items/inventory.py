@@ -49,6 +49,15 @@ class Inventory:
         return self.typed_slots + self.slots
 
     def add(self, item: Item) -> bool:
+        if item.stackable:
+            for slot in self.all_slots():
+                if (slot.item and type(slot.item) == type(item)
+                        and hasattr(slot.item, 'ammo_type')
+                        and slot.item.ammo_type == item.ammo_type
+                        and slot.item.stack_count < slot.item.max_stack):
+                    space = slot.item.max_stack - slot.item.stack_count
+                    slot.item.stack_count += min(space, item.stack_count)
+                    return True
         for slot in self.all_slots():
             if slot.empty and slot.accepts(item):
                 slot.item = item

@@ -154,7 +154,29 @@ class HUD:
 
         for slot, rect in self._all_interactive_rects():
             if rect.collidepoint(pos) and slot is not self._drag.source_slot:
-                if not slot.accepts(self._drag.item):
+                drag_item   = self._drag.item
+                target_item = slot.item
+
+                if (target_item and drag_item.stackable
+                        and type(target_item) == type(drag_item)
+                        and hasattr(target_item, 'ammo_type')
+                        and target_item.ammo_type == drag_item.ammo_type
+                        and target_item.stack_count < target_item.max_stack):
+                    space = target_item.max_stack - target_item.stack_count
+                    take  = min(space, drag_item.stack_count)
+                    target_item.stack_count += take
+                    drag_item.stack_count   -= take
+                    if drag_item.stack_count <= 0:
+                        if self._drag.source_slot:
+                            self._drag.source_slot.item = None
+                        self._drag = None
+                    else:
+                        if self._drag.source_slot:
+                            self._drag.source_slot.item = drag_item
+                        self._drag = None
+                    return result
+
+                if not slot.accepts(drag_item):
                     continue
                 source_slot  = self._drag.source_slot
                 source_world = self._drag.source_world_item
