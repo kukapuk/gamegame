@@ -117,9 +117,11 @@ class HUD:
         if not self._drag:
             return
         for slot, rect in self._all_interactive_rects():
-            if rect.collidepoint(pos):
-                if slot.empty and slot.accepts(self._drag.item):
+            if rect.collidepoint(pos) and slot is not self._drag.source_slot:
+                if slot.accepts(self._drag.item) and self._drag.source_slot.accepts(slot.item if slot.item else self._drag.item):
+                    old_item = slot.item
                     slot.item = self._drag.item
+                    self._drag.source_slot.item = old_item
                     self._drag = None
                     return
         self._drag.source_slot.item = self._drag.item
