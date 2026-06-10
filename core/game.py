@@ -90,7 +90,7 @@ class Game:
                         self.running = False
 
                 elif event.key == pygame.K_TAB:
-                    pass
+                    self.hud.toggle_pouch()
 
                 elif event.key == pygame.K_F1:
                     self.debug = not self.debug
