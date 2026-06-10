@@ -2,9 +2,9 @@ import pygame
 from dataclasses import dataclass
 from typing import Optional
 from core.settings import Settings
-from entities.actors.player import Player
-from entities.items.item import ItemType
-from entities.items.inventory import Slot, Inventory
+from actors.player import Player
+from items.item import ItemType
+from items.inventory import Slot, Inventory
 
 
 @dataclass

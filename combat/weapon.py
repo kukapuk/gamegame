@@ -2,8 +2,8 @@ import pygame
 import math
 import random
 from core.settings import Settings
-from entities.combat.bullet import Bullet
-from entities.items.weapon_item import WeaponItem
+from combat.bullet import Bullet
+from items.weapon_item import WeaponItem
 
 
 class Weapon(pygame.sprite.Sprite):

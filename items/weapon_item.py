@@ -1,6 +1,6 @@
 import pygame
 from dataclasses import dataclass
-from entities.items.item import Item, ItemType
+from items.item import Item, ItemType
 
 
 @dataclass

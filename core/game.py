@@ -2,12 +2,12 @@ import pygame
 from core.settings import Settings
 from core.camera import Camera
 from core.hud import HUD
-from entities.actors.player import Player
-from entities.combat.weapon import Weapon
-from entities.actors.enemy import Enemy
-from entities.items.world_item import WorldItem
-from entities.items.consumable import make_medkit
-from entities.items.weapon_item import WeaponItem, make_carbine, make_shotgun, make_sniper
+from actors.player import Player
+from combat.weapon import Weapon
+from actors.enemy import Enemy
+from items.world_item import WorldItem
+from items.consumable import make_medkit
+from items.weapon_item import WeaponItem, make_carbine, make_shotgun, make_sniper
 
 
 class Game:
@@ -154,7 +154,7 @@ class Game:
                 self.hud.update_world_hover(event.pos, self.world_items, self.camera.get_offset())
 
     def _try_drop(self) -> None:
-        from entities.items.item import ItemType
+        from items.item import ItemType
         weapon_slots = [s for s in self.player.pouch.typed_slots if s.allowed_type == ItemType.WEAPON]
         slot = weapon_slots[self.player.active_weapon_slot]
         if slot.empty:
@@ -174,7 +174,7 @@ class Game:
         picked   = False
 
         if isinstance(item, WeaponItem):
-            from entities.items.item import ItemType
+            from items.item import ItemType
             weapon_slots = [s for s in self.player.pouch.typed_slots if s.allowed_type == ItemType.WEAPON]
             for slot in weapon_slots:
                 if slot.empty:

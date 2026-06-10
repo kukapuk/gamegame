@@ -1,8 +1,8 @@
 import pygame
-from entities.actors.actor import Actor
-from entities.stats import Stats
-from entities.items.inventory import Inventory
-from entities.items.item import ItemType
+from actors.actor import Actor
+from items.stats import Stats
+from items.inventory import Inventory
+from items.item import ItemType
 from core.settings import Settings
 
 

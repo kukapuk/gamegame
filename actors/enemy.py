@@ -1,6 +1,6 @@
 import pygame
-from entities.actors.actor import Actor
-from entities.stats import Stats
+from actors.actor import Actor
+from items.stats import Stats
 
 
 class Enemy(Actor):

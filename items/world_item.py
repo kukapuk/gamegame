@@ -1,6 +1,6 @@
 import pygame
-from entities.items.item import Item
-from entities.items.weapon_item import WeaponItem
+from items.item import Item
+from items.weapon_item import WeaponItem
 
 
 class WorldItem(pygame.sprite.Sprite):

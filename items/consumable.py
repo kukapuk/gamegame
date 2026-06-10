@@ -1,4 +1,4 @@
-from entities.items.item import Item, ItemType
+from items.item import Item, ItemType
 
 
 class Consumable(Item):
