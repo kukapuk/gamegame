@@ -6,7 +6,7 @@ class Settings:
     # Window
     screen_width: int = 1280
     screen_height: int = 720
-    title: str = "TopDown Shooter"
+    title: str = "gamegame"
     fps: int = 60
 
     # Player

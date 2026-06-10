@@ -13,7 +13,7 @@ class Bullet(pygame.sprite.Sprite):
         pos: tuple[float, float],
         direction: pygame.math.Vector2,
         settings: Settings,
-        groups: list = (),        # ← не *groups, а groups
+        groups: list = (),
     ) -> None:
         super().__init__(*groups)
 

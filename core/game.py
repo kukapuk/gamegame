@@ -17,7 +17,7 @@ class Game:
 
         # -- Sprite groups --
         self.all_sprites = pygame.sprite.Group()
-        self.bullets = pygame.sprite.Group() # отдельная группа для коллизий
+        self.bullets = pygame.sprite.Group()      # отдельная группа для коллизий
 
         # -- Entities --
         spawn = (settings.screen_width // 2, settings.screen_height // 2)
@@ -32,7 +32,8 @@ class Game:
 
         # -- Camera --
         self.camera = Camera(settings)
-        
+
+        # -- Debug --
         self.debug = False
 
     # ------------------------------------------------------------------
@@ -55,13 +56,18 @@ class Game:
                     self.running = False
                 elif event.key == pygame.K_F1:
                     self.debug = not self.debug
+                elif event.key == pygame.K_SPACE:
+                    self.player.try_dash()
 
     def _update(self, dt: float) -> None:
+        # Обычные спрайты — без доп. аргументов
         self.player.update(dt)
         self.bullets.update(dt)
 
+        # Оружие требует camera_offset для пересчёта позиции мыши
         self.weapon.update(dt, self.camera.get_offset())
 
+        # Стрельба — зажатая кнопка мыши (автоогонь)
         if pygame.mouse.get_pressed()[0]:
             self.weapon.try_shoot()
 
@@ -74,6 +80,8 @@ class Game:
         if self.debug:
             self._draw_debug_info()
         pygame.display.flip()
+
+    # ------------------------------------------------------------------
 
     def _draw_grid(self) -> None:
         gs = self.settings.grid_size
@@ -98,21 +106,24 @@ class Game:
             y += gs
 
     def _draw_sprites(self) -> None:
-        # сначала пули (под игроком), потом игрок, потом оружие
+        # Рендерим в нужном порядке: сначала пули (под игроком), потом игрок, потом оружие
         for sprite in [*self.bullets.sprites(), self.player, self.weapon]:
             screen_rect = self.camera.apply(sprite.rect)
             self.screen.blit(sprite.image, screen_rect)
 
     def _draw_debug_info(self) -> None:
         font = pygame.font.SysFont("monospace", 16)
+        p = self.player
         lines = [
             f"FPS: {self.clock.get_fps():.0f}",
-            f"pos: ({self.player.pos.x:.0f}, {self.player.pos.y:.0f})",
-            f"vel: ({self.player.velocity.x:.0f}, {self.player.velocity.y:.0f})",
+            f"pos: ({p.pos.x:.0f}, {p.pos.y:.0f})",
+            f"vel: ({p.velocity.x:.0f}, {p.velocity.y:.0f})",
             f"aim: ({self.weapon.aim_dir.x:.2f}, {self.weapon.aim_dir.y:.2f})",
+            f"stamina: {p.stamina:.0f} / {p.stats.max_stamina:.0f}",
+            f"dash cd: {p._dash_cooldown:.2f}s  dashing: {p._is_dashing}",
             f"bullets: {len(self.bullets)}",
         ]
         for i, line in enumerate(lines):
             surf = font.render(line, True, (180, 220, 180))
             self.screen.blit(surf, (10, 10 + i * 20))
-        self.player.draw_debug(self.screen, self.camera.get_offset())
+        p.draw_debug(self.screen, self.camera.get_offset())

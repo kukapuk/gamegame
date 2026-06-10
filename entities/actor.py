@@ -26,19 +26,15 @@ class Actor(pygame.sprite.Sprite):
         super().__init__(*groups)
 
         self.color = color
-
-        # Surface & rect
+        
         self.image = pygame.Surface((size, size), pygame.SRCALPHA)
         self.image.fill(color)
         self.rect = self.image.get_rect(center=pos)
-
-        # Float position for sub-pixel movement precision
+        
         self.pos = pygame.math.Vector2(pos)
-
-        # Velocity in pixels-per-second; subclasses write to this
+        
         self.velocity = pygame.math.Vector2(0, 0)
-
-        # Stats
+        
         self.speed: float = 0.0
         self.alive: bool = True
 

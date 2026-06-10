@@ -1,27 +1,57 @@
 import pygame
 from entities.actor import Actor
+from entities.stats import Stats
 from core.settings import Settings
 
 
 class Player(Actor):
-    def __init__(self, pos: tuple[float, float], settings: Settings, groups) -> None:
+    """
+    Human-controlled actor.
+    Движение WASD, dash по Space в направлении движения.
+    Характеристики (скорость, dash) берутся из self.stats — меняй Stats при смене брони.
+    """
+
+    def __init__(self, pos: tuple[float, float], settings: Settings, groups: list = ()) -> None:
         super().__init__(
             pos=pos,
             size=settings.player_size,
             color=settings.player_color,
             groups=groups,
         )
-        self.speed = settings.player_speed
         self.settings = settings
+        self.stats = Stats()
+        self.speed = self.stats.speed
 
-        # Direction the player is currently facing (for aiming / shooting later)
         self.facing = pygame.math.Vector2(0, 1)
+        self._move_dir = pygame.math.Vector2(0, 0)
 
-    def handle_input(self) -> None:
+        self.stamina: float = self.stats.max_stamina
+        self._dash_cooldown: float = 0.0
+        self._dash_timer: float = 0.0
+        self._dash_velocity = pygame.math.Vector2(0, 0)
+        self._is_dashing: bool = False
+
+    def try_dash(self) -> None:
+        if self._is_dashing:
+            return
+        if self._dash_cooldown > 0:
+            return
+        if self.stamina < self.stats.dash_stamina_cost:
+            return
+
+        direction = self._move_dir if self._move_dir.length() > 0 else self.facing
+
+        self.stamina -= self.stats.dash_stamina_cost
+        self._is_dashing = True
+        self._dash_timer = self.stats.dash_duration
+        self._dash_cooldown = self.stats.dash_cooldown
+        dash_speed = self.stats.dash_distance / self.stats.dash_duration
+        self._dash_velocity = direction.normalize() * dash_speed
+
+    def _handle_input(self) -> None:
         keys = pygame.key.get_pressed()
 
         direction = pygame.math.Vector2(0, 0)
-
         if keys[pygame.K_w] or keys[pygame.K_UP]:
             direction.y -= 1
         if keys[pygame.K_s] or keys[pygame.K_DOWN]:
@@ -33,10 +63,31 @@ class Player(Actor):
 
         if direction.length() > 0:
             direction = direction.normalize()
-            self.facing = direction.copy()
 
-        self.velocity = direction * self.speed
+        self._move_dir = direction
+
+        if not self._is_dashing:
+            self.velocity = direction * self.speed
+
+    def _update_dash(self, dt: float) -> None:
+        self._dash_cooldown = max(0.0, self._dash_cooldown - dt)
+
+        if self._is_dashing:
+            self._dash_timer -= dt
+            self.velocity = self._dash_velocity
+            if self._dash_timer <= 0:
+                self._is_dashing = False
+                self.velocity = self._move_dir * self.speed
+
+    def _update_stamina(self, dt: float) -> None:
+        if not self._is_dashing:
+            self.stamina = min(
+                self.stats.max_stamina,
+                self.stamina + self.stats.stamina_regen * dt,
+            )
 
     def update(self, dt: float) -> None:
-        self.handle_input()
-        super().update(dt) # applies velocity * dt to position
+        self._handle_input()
+        self._update_dash(dt)
+        self._update_stamina(dt)
+        super().update(dt)
