@@ -10,9 +10,9 @@ from items.inventory import Slot, Inventory
 @dataclass
 class DragState:
     item: object
-    source_inv: object        # Inventory | None
-    source_slot: object       # Slot | None
-    source_world_item: object = None   # WorldItem | None
+    source_inv: object
+    source_slot: object
+    source_world_item: object = None
     icon_size: int = 40
 
 
@@ -42,7 +42,7 @@ class HUD:
     MARGIN            = 20
 
     def __init__(self, settings: Settings, player: Player) -> None:
-        self.s = settings
+        self.s      = settings
         self.player = player
         self.font_sm = pygame.font.SysFont("monospace", 11)
         self.font_md = pygame.font.SysFont("monospace", 13)
@@ -50,29 +50,28 @@ class HUD:
         self.pouch_open: bool    = False
         self.backpack_open: bool = False
 
-        self._drag: Optional[DragState] = None
-        self._tooltip_text: str         = ""
+        self._drag: Optional[DragState]           = None
+        self._tooltip_text: str                   = ""
         self._hovered_rect: Optional[pygame.Rect] = None
+        self._hovered_world_item                  = None
 
-        self._backpack_slot_rects: list[tuple[Slot, pygame.Rect]] = []
-        self._pouch_panel_slot_rects: list[tuple[Slot, pygame.Rect]] = []
+        self._backpack_slot_rects: list      = []
+        self._pouch_panel_slot_rects: list   = []
 
-        ss   = self.SLOT_SIZE
-        pad  = self.SLOT_PAD
-        cols = self.COLS_BACKPACK
-        rows = (16 + cols - 1) // cols
+        ss      = self.SLOT_SIZE
+        pad     = self.SLOT_PAD
+        cols    = self.COLS_BACKPACK
+        rows    = (16 + cols - 1) // cols
         panel_w = cols * ss + (cols - 1) * pad + 24
         panel_h = rows * ss + (rows - 1) * pad + self.TITLE_H + 22
 
-        self._backpack_pos = pygame.Vector2(
+        self._backpack_pos        = pygame.Vector2(
             settings.screen_width - panel_w - self.MARGIN,
             settings.screen_height // 2 - panel_h // 2,
         )
         self._backpack_panel_size = (panel_w, panel_h)
-
-        self._panel_dragging: bool = False
-        self._panel_drag_offset = pygame.Vector2(0, 0)
-        self._hovered_world_item = None
+        self._panel_dragging      = False
+        self._panel_drag_offset   = pygame.Vector2(0, 0)
 
     def toggle_pouch(self) -> None:
         self.pouch_open = not self.pouch_open
@@ -86,17 +85,16 @@ class HUD:
             if self._drag.source_slot:
                 self._drag.source_slot.item = self._drag.item
             self._drag = None
-        self._panel_dragging = False
+        self._panel_dragging     = False
         self._hovered_world_item = None
 
     def is_open(self) -> bool:
         return self.backpack_open
 
-    def handle_mouse_down(self, pos: tuple[int, int]) -> None:
+    def handle_mouse_down(self, pos: tuple) -> None:
         if not self.backpack_open:
             return
-        title_rect = self._backpack_title_rect()
-        if title_rect.collidepoint(pos):
+        if self._backpack_title_rect().collidepoint(pos):
             self._panel_dragging = True
             self._panel_drag_offset.update(
                 pos[0] - self._backpack_pos.x,
@@ -114,10 +112,12 @@ class HUD:
                 slot.item = None
                 return
 
-    def handle_world_mouse_down(self, pos: tuple[int, int], world_items, camera_offset: pygame.math.Vector2) -> bool:
+    def handle_world_mouse_down(self, pos: tuple, world_items, camera_offset) -> bool:
         if not self.backpack_open:
             return False
         for wi in world_items:
+            if not wi.is_in_pickup_range(self.player.pos):
+                continue
             screen_rect = wi.rect.move(-camera_offset.x, -camera_offset.y)
             if screen_rect.collidepoint(pos):
                 self._drag = DragState(
@@ -130,23 +130,20 @@ class HUD:
                 return True
         return False
 
-    def update_world_hover(self, pos: tuple[int, int], world_items, camera_offset: pygame.math.Vector2) -> None:
+    def update_world_hover(self, pos: tuple, world_items, camera_offset) -> None:
         if not self.backpack_open:
             self._hovered_world_item = None
             return
         self._hovered_world_item = None
         for wi in world_items:
+            if not wi.is_in_pickup_range(self.player.pos):
+                continue
             screen_rect = wi.rect.move(-camera_offset.x, -camera_offset.y)
             if screen_rect.collidepoint(pos):
                 self._hovered_world_item = wi
                 break
 
-    def handle_mouse_up(self, pos: tuple[int, int]) -> dict:
-        """
-        Возвращает dict с инструкциями для game.py:
-          kill_world_item  — WorldItem который нужно убить (предмет подобран)
-          drop_item        — Item который нужно выбросить в мир рядом с игроком
-        """
+    def handle_mouse_up(self, pos: tuple) -> dict:
         result = {"kill_world_item": None, "drop_item": None}
 
         if self._panel_dragging:
@@ -166,7 +163,7 @@ class HUD:
                 if source_slot and old_item and not source_slot.accepts(old_item):
                     continue
 
-                slot.item = self._drag.item
+                slot.item  = self._drag.item
                 self._drag = None
 
                 if source_slot:
@@ -176,42 +173,35 @@ class HUD:
 
                 return result
 
-        # Drop мимо всех слотов
         source_slot  = self._drag.source_slot
         source_world = self._drag.source_world_item
 
         if source_slot:
-            # Из инвентаря в никуда — выбрасываем в мир
             result["drop_item"] = self._drag.item
-        elif source_world:
-            # Из мира в никуда — оставляем на полу (ничего не делаем)
-            pass
-
         self._drag = None
         return result
 
-    def handle_mouse_motion(self, pos: tuple[int, int]) -> None:
+    def handle_mouse_motion(self, pos: tuple) -> None:
         if self._panel_dragging:
-            pw, ph = self._backpack_panel_size
-            new_x = pos[0] - self._panel_drag_offset.x
-            new_y = pos[1] - self._panel_drag_offset.y
-            new_x = max(0, min(new_x, self.s.screen_width  - pw))
-            new_y = max(0, min(new_y, self.s.screen_height - ph))
+            pw, ph  = self._backpack_panel_size
+            new_x   = max(0, min(pos[0] - self._panel_drag_offset.x, self.s.screen_width  - pw))
+            new_y   = max(0, min(pos[1] - self._panel_drag_offset.y, self.s.screen_height - ph))
             self._backpack_pos.update(new_x, new_y)
             return
-
-        self._tooltip_text = ""
-        self._hovered_rect = None
+        self._tooltip_text  = ""
+        self._hovered_rect  = None
         for slot, rect in self._all_interactive_rects():
             if rect.collidepoint(pos):
                 self._hovered_rect = rect
                 if not slot.empty:
                     self._tooltip_text = slot.item.get_tooltip()
 
-    def draw(self, screen: pygame.Surface, i_hold_progress: float = 0.0) -> None:
+    def draw(self, screen: pygame.Surface, i_hold_progress: float = 0.0, weapon=None) -> None:
         self._draw_hp_bar(screen)
         self._draw_stamina_bar(screen)
         self._draw_quick_slots(screen)
+        if weapon and weapon.has_weapon:
+            self._draw_ammo_counter(screen, weapon)
         if self.pouch_open:
             self._draw_pouch_panel(screen)
         if self.backpack_open:
@@ -222,11 +212,11 @@ class HUD:
             self._draw_i_progress(screen, i_hold_progress)
         self._draw_tooltip(screen, pygame.mouse.get_pos())
 
-    def draw_world_hover(self, screen: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
+    def draw_world_hover(self, screen: pygame.Surface, camera_offset) -> None:
         if not self._hovered_world_item or not self.backpack_open:
             return
-        wi = self._hovered_world_item
-        r  = wi.rect.move(-camera_offset.x, -camera_offset.y)
+        wi  = self._hovered_world_item
+        r   = wi.rect.move(-camera_offset.x, -camera_offset.y)
         pad = 6
         hover = pygame.Surface((r.width + pad * 2, r.height + pad * 2), pygame.SRCALPHA)
         hover.fill((180, 200, 255, 60))
@@ -235,12 +225,7 @@ class HUD:
 
     def _backpack_title_rect(self) -> pygame.Rect:
         pw, _ = self._backpack_panel_size
-        return pygame.Rect(
-            int(self._backpack_pos.x),
-            int(self._backpack_pos.y),
-            pw,
-            self.TITLE_H,
-        )
+        return pygame.Rect(int(self._backpack_pos.x), int(self._backpack_pos.y), pw, self.TITLE_H)
 
     def _bar_baseline(self) -> int:
         return self.s.screen_height - self.MARGIN
@@ -264,25 +249,46 @@ class HUD:
         for i, slot in enumerate(self.player.pouch.slots):
             yield slot, pygame.Rect(ox + i * (ss + pad), oy, ss, ss)
 
+    def _draw_ammo_counter(self, screen: pygame.Surface, weapon) -> None:
+        ox      = self.MARGIN + self.s.player_hp_bar_width + 12
+        ss      = self.SMALL_SLOT
+        pad     = self.SLOT_PAD
+        slots_w = len(list(self.player.pouch.slots)) * (ss + pad)
+        x       = ox + slots_w + 12
+        y       = self._bar_baseline() - ss
+
+        if weapon.reloading:
+            progress = 1.0 - weapon._reload_timer / weapon._weapon_item.stats.reload_time
+            bw, bh   = 90, 5
+            pygame.draw.rect(screen, (40, 40, 60),    (x, y + ss - bh - 2, bw, bh))
+            pygame.draw.rect(screen, (180, 140, 40),  (x, y + ss - bh - 2, int(bw * progress), bh))
+            lbl = self.font_md.render("RELOADING", True, (220, 180, 60))
+        else:
+            text  = f"{weapon.mag_current} / {weapon.mag_size}"
+            color = (220, 220, 220) if weapon.mag_current > 0 else (220, 60, 60)
+            lbl   = self.font_md.render(text, True, color)
+
+        screen.blit(lbl, (x, y + (ss - lbl.get_height()) // 2))
+
     def _draw_i_progress(self, screen: pygame.Surface, progress: float) -> None:
         bw, bh = 120, 6
-        cx = self.s.screen_width // 2
-        by = self.s.screen_height - self.MARGIN - bh - 60
-        bx = cx - bw // 2
-        pygame.draw.rect(screen, (30, 30, 50), (bx, by, bw, bh))
+        cx     = self.s.screen_width // 2
+        by     = self.s.screen_height - self.MARGIN - bh - 60
+        bx     = cx - bw // 2
+        pygame.draw.rect(screen, (30, 30, 50),    (bx, by, bw, bh))
         fill = int(bw * min(progress, 1.0))
         if fill > 0:
             pygame.draw.rect(screen, (120, 160, 220), (bx, by, fill, bh))
-        pygame.draw.rect(screen, (60, 65, 90), (bx, by, bw, bh), 1)
+        pygame.draw.rect(screen, (60, 65, 90),    (bx, by, bw, bh), 1)
         label = "Opening..." if not self.backpack_open else "Closing..."
-        lbl = self.font_sm.render(label, True, (140, 150, 180))
+        lbl   = self.font_sm.render(label, True, (140, 150, 180))
         screen.blit(lbl, (cx - lbl.get_width() // 2, by - 16))
 
     def _draw_hp_bar(self, screen: pygame.Surface) -> None:
-        s = self.s
-        bw, bh = s.player_hp_bar_width, s.player_hp_bar_height
-        bx, by = self.MARGIN, self._bar_baseline() - bh
-        pygame.draw.rect(screen, s.player_hp_bar_bg, (bx, by, bw, bh))
+        s       = self.s
+        bw, bh  = s.player_hp_bar_width, s.player_hp_bar_height
+        bx, by  = self.MARGIN, self._bar_baseline() - bh
+        pygame.draw.rect(screen, s.player_hp_bar_bg,    (bx, by, bw, bh))
         fill = int(bw * self.player.hp / self.player.max_hp)
         if fill > 0:
             pygame.draw.rect(screen, s.player_hp_bar_color, (bx, by, fill, bh))
@@ -294,17 +300,17 @@ class HUD:
         bh  = 5
         bx  = self.MARGIN
         by  = self._bar_baseline() - s.player_hp_bar_height - 3 - bh
-        pygame.draw.rect(screen, (30, 30, 50), (bx, by, bw, bh))
+        pygame.draw.rect(screen, (30, 30, 50),  (bx, by, bw, bh))
         fill = int(bw * self.player.stamina / self.player.stats.max_stamina)
         if fill > 0:
             pygame.draw.rect(screen, (80, 140, 220), (bx, by, fill, bh))
-        pygame.draw.rect(screen, (60, 60, 90), (bx, by, bw, bh), 1)
+        pygame.draw.rect(screen, (60, 60, 90),  (bx, by, bw, bh), 1)
 
     def _draw_quick_slots(self, screen: pygame.Surface) -> None:
         ss = self.SMALL_SLOT
         for i, (slot, rect) in enumerate(self._quick_slot_rects()):
             bg = self.SLOT_HOVER if rect == self._hovered_rect else self.SLOT_BG
-            pygame.draw.rect(screen, bg, rect)
+            pygame.draw.rect(screen, bg,              rect)
             pygame.draw.rect(screen, self.SLOT_BORDER, rect, 1)
             if not slot.empty:
                 icon = pygame.transform.scale(slot.item.icon, (ss - 4, ss - 4))
@@ -319,11 +325,10 @@ class HUD:
         armor_sz  = 64
         inner_pad = 10
         pad       = self.SLOT_PAD
-
-        panel_w = weapon_w + inner_pad + armor_sz + inner_pad + weapon_w + inner_pad * 2
-        panel_h = armor_sz + inner_pad * 2
-        ox = self.MARGIN
-        oy = self._bar_baseline() - self.s.player_hp_bar_height - panel_h - 16
+        panel_w   = weapon_w + inner_pad + armor_sz + inner_pad + weapon_w + inner_pad * 2
+        panel_h   = armor_sz + inner_pad * 2
+        ox        = self.MARGIN
+        oy        = self._bar_baseline() - self.s.player_hp_bar_height - panel_h - 16
 
         surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
         surf.fill(self.PANEL_BG)
@@ -353,14 +358,13 @@ class HUD:
             screen.blit(lbl, (r.x + 3, r.y + 3))
 
     def _draw_backpack(self, screen: pygame.Surface) -> None:
-        ss    = self.SLOT_SIZE
-        pad   = self.SLOT_PAD
-        cols  = self.COLS_BACKPACK
-        slots = self.player.backpack.all_slots()
-        rows  = (len(slots) + cols - 1) // cols
+        ss     = self.SLOT_SIZE
+        pad    = self.SLOT_PAD
+        cols   = self.COLS_BACKPACK
+        slots  = self.player.backpack.all_slots()
         pw, ph = self._backpack_panel_size
-        px = int(self._backpack_pos.x)
-        py = int(self._backpack_pos.y)
+        px     = int(self._backpack_pos.x)
+        py     = int(self._backpack_pos.y)
 
         surf = pygame.Surface((pw, ph), pygame.SRCALPHA)
         surf.fill(self.PANEL_BG)
@@ -380,35 +384,38 @@ class HUD:
 
         for i, slot in enumerate(slots):
             col, row = i % cols, i // cols
-            r = pygame.Rect(ox + col * (ss + pad), oy + row * (ss + pad), ss, ss)
+            r        = pygame.Rect(ox + col * (ss + pad), oy + row * (ss + pad), ss, ss)
             self._backpack_slot_rects.append((slot, r))
             bg = self.SLOT_HOVER if r == self._hovered_rect else self.SLOT_BG
-            pygame.draw.rect(screen, bg, r)
+            pygame.draw.rect(screen, bg,               r)
             pygame.draw.rect(screen, self.SLOT_BORDER, r, 1)
             if not slot.empty:
                 icon = pygame.transform.scale(slot.item.icon, (ss - 4, ss - 4))
                 screen.blit(icon, icon.get_rect(center=r.center))
+                if slot.item.stackable and slot.item.stack_count > 1:
+                    cnt = self.font_sm.render(str(slot.item.stack_count), True, (200, 200, 160))
+                    screen.blit(cnt, (r.right - cnt.get_width() - 3, r.bottom - cnt.get_height() - 2))
 
     def _draw_dragged_item(self, screen: pygame.Surface) -> None:
         mx, my = pygame.mouse.get_pos()
-        sz = self._drag.icon_size
-        icon = pygame.transform.scale(self._drag.item.icon, (sz, sz))
+        sz     = self._drag.icon_size
+        icon   = pygame.transform.scale(self._drag.item.icon, (sz, sz))
         screen.blit(icon, (mx - sz // 2, my - sz // 2))
 
-    def _draw_tooltip(self, screen: pygame.Surface, pos: tuple[int, int]) -> None:
+    def _draw_tooltip(self, screen: pygame.Surface, pos: tuple) -> None:
         if not self._tooltip_text or self._drag:
             return
         surf = self.font_sm.render(self._tooltip_text, True, (255, 255, 200))
-        pad = 6
-        bg = pygame.Surface((surf.get_width() + pad * 2, surf.get_height() + pad * 2), pygame.SRCALPHA)
+        pad  = 6
+        bg   = pygame.Surface((surf.get_width() + pad * 2, surf.get_height() + pad * 2), pygame.SRCALPHA)
         bg.fill(self.TOOLTIP_BG)
-        screen.blit(bg, (pos[0] + 12, pos[1] - bg.get_height()))
+        screen.blit(bg,   (pos[0] + 12, pos[1] - bg.get_height()))
         screen.blit(surf, (pos[0] + 12 + pad, pos[1] - bg.get_height() + pad))
 
     def _draw_slot(self, screen: pygame.Surface, slot: Slot, rect: pygame.Rect, typed: bool = False) -> None:
         bg     = self.SLOT_HOVER if rect == self._hovered_rect else (self.SLOT_TYPED_BG if typed else self.SLOT_BG)
         border = self.SLOT_TYPED_BORDER if typed else self.SLOT_BORDER
-        pygame.draw.rect(screen, bg, rect)
+        pygame.draw.rect(screen, bg,     rect)
         pygame.draw.rect(screen, border, rect, 1)
         if slot and not slot.empty:
             icon = pygame.transform.scale(slot.item.icon, (rect.width - 4, rect.height - 4))

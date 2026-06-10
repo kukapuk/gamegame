@@ -8,6 +8,7 @@ from actors.enemy import Enemy
 from items.world_item import WorldItem
 from items.consumable import make_medkit
 from items.weapon_item import WeaponItem, make_carbine, make_shotgun, make_sniper
+from items.ammo import make_ammo, AmmoType
 
 
 class Game:
@@ -53,6 +54,8 @@ class Game:
 
     def _sync_weapon(self) -> None:
         item = self.player.get_active_weapon()
+        if item is self.weapon._weapon_item:
+            return
         self.weapon.equip(item if item else None)
 
     def _spawn_enemies(self) -> None:
@@ -60,10 +63,17 @@ class Game:
             Enemy(pos=pos, target=self.player, groups=[self.all_sprites, self.enemies])
 
     def _give_test_items(self) -> None:
-        for i in range(2):
+        test_items = [
+            make_ammo(AmmoType.CARBINE, 90),
+            make_ammo(AmmoType.SHOTGUN, 48),
+            make_ammo(AmmoType.SNIPER,  20),
+            make_medkit(30),
+            make_medkit(30),
+        ]
+        for i, item in enumerate(test_items):
             slot = self.player.backpack.get_slot(i)
             if slot:
-                slot.put(make_medkit(30))
+                slot.put(item)
 
     def _spawn_world_items(self) -> None:
         cx, cy = self.settings.screen_width // 2, self.settings.screen_height // 2
@@ -117,6 +127,8 @@ class Game:
                     self.debug = not self.debug
                 elif event.key == pygame.K_SPACE:
                     self.player.try_dash()
+                elif event.key == pygame.K_r:
+                    self.weapon.try_reload()
                 elif event.key == pygame.K_e:
                     self._try_pickup()
                 elif event.key == pygame.K_g:
@@ -170,8 +182,8 @@ class Game:
     def _try_pickup(self) -> None:
         if not self._nearby_world_item:
             return
-        item     = self._nearby_world_item.item
-        picked   = False
+        item   = self._nearby_world_item.item
+        picked = False
 
         if isinstance(item, WeaponItem):
             from items.item import ItemType
@@ -242,7 +254,7 @@ class Game:
         self._draw_enemy_hp_bars()
         self.hud.draw_world_hover(self.screen, self.camera.get_offset())
         self._draw_pickup_hint()
-        self.hud.draw(self.screen, i_hold_progress=self._i_held_time / self.settings.backpack_hold_time)
+        self.hud.draw(self.screen, i_hold_progress=self._i_held_time / self.settings.backpack_hold_time, weapon=self.weapon)
         if self.debug:
             self._draw_debug_info()
         pygame.display.flip()

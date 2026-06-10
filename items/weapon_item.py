@@ -1,6 +1,6 @@
-import pygame
 from dataclasses import dataclass
 from items.item import Item, ItemType
+from items.ammo import AmmoType
 
 
 @dataclass
@@ -19,6 +19,9 @@ class WeaponStats:
     color: tuple[int, int, int]
     bullet_size: int
     bullet_color: tuple[int, int, int]
+    ammo_type: AmmoType
+    mag_size: int
+    reload_time: float
 
 
 class WeaponItem(Item):
@@ -35,10 +38,11 @@ class WeaponItem(Item):
             stackable=False,
         )
         self.stats = stats
+        self.mag_current: int = -1
 
     def get_tooltip(self) -> str:
-        ap  = int(self.stats.armor_penetration * 100)
-        se  = int(self.stats.stopping_effect   * 100)
+        ap = int(self.stats.armor_penetration * 100)
+        se = int(self.stats.stopping_effect   * 100)
         return f"{self.name}  DMG:{self.stats.damage}  AP:{ap}%  SE:{se}%"
 
 
@@ -61,6 +65,9 @@ def make_carbine() -> WeaponItem:
             color=(120, 180, 100),
             bullet_size=5,
             bullet_color=(220, 240, 120),
+            ammo_type=AmmoType.CARBINE,
+            mag_size=30,
+            reload_time=2.0,
         ),
     )
 
@@ -84,6 +91,9 @@ def make_shotgun() -> WeaponItem:
             color=(200, 140, 70),
             bullet_size=4,
             bullet_color=(255, 200, 80),
+            ammo_type=AmmoType.SHOTGUN,
+            mag_size=8,
+            reload_time=2.5,
         ),
     )
 
@@ -107,5 +117,8 @@ def make_sniper() -> WeaponItem:
             color=(100, 140, 220),
             bullet_size=5,
             bullet_color=(180, 220, 255),
+            ammo_type=AmmoType.SNIPER,
+            mag_size=1,
+            reload_time=3.0,
         ),
     )
