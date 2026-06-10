@@ -10,6 +10,7 @@ from items.world_item import WorldItem
 from items.consumable import make_medkit
 from items.weapon_item import WeaponItem, make_carbine, make_shotgun, make_sniper
 from items.ammo import make_ammo, AmmoType
+from combat.calculator import resolve_hit
 
 
 class Game:
@@ -29,7 +30,7 @@ class Game:
         self.enemies     = pygame.sprite.Group()
         self.world_items = pygame.sprite.Group()
 
-        self.level = Level("./levels/level_1.txt", settings.grid_size)
+        self.level = Level("levels/level_1.txt", settings.grid_size)
 
         spawn = self.level.player_spawn
         self.player = Player(spawn, settings, groups=[self.all_sprites])
@@ -62,8 +63,16 @@ class Game:
         self.weapon.equip(item if item else None)
 
     def _spawn_enemies(self) -> None:
-        for pos in [(800, 400), (300, 600), (1000, 200), (500, 800), (1200, 500)]:
-            Enemy(pos=pos, target=self.player, groups=[self.all_sprites, self.enemies])
+        spawns = [
+            ((800, 400), 0),
+            ((300, 600), 0),
+            ((1000, 200), 1),
+            ((500, 800), 2),
+            ((1200, 500), 3),
+        ]
+        for pos, armor in spawns:
+            Enemy(pos=pos, target=self.player, armor_class=armor,
+                  groups=[self.all_sprites, self.enemies])
 
     def _give_test_items(self) -> None:
         test_items = [
@@ -80,14 +89,18 @@ class Game:
 
     def _spawn_world_items(self) -> None:
         from items.ammo import make_ammo, AmmoType
+        from items.armor import make_light_armor, make_medium_armor, make_heavy_armor
         cx, cy = self.settings.screen_width // 2, self.settings.screen_height // 2
         items = [
-            (make_carbine(),              (cx + 120, cy + 60)),
-            (make_shotgun(),              (cx - 140, cy + 80)),
-            (make_sniper(),               (cx + 60,  cy - 120)),
+            (make_carbine(),                  (cx + 120, cy + 60)),
+            (make_shotgun(),                  (cx - 140, cy + 80)),
+            (make_sniper(),                   (cx + 60,  cy - 120)),
             (make_ammo(AmmoType.CARBINE, 30), (cx + 180, cy - 40)),
             (make_ammo(AmmoType.SHOTGUN, 16), (cx - 60,  cy - 100)),
             (make_ammo(AmmoType.SNIPER,  5),  (cx - 180, cy + 40)),
+            (make_light_armor(),              (cx + 240, cy + 120)),
+            (make_medium_armor(),             (cx - 240, cy - 60)),
+            (make_heavy_armor(),              (cx,       cy + 160)),
         ]
         for item, pos in items:
             WorldItem(item=item, pos=pos, groups=[self.world_items])
@@ -273,22 +286,37 @@ class Game:
                 self._nearby_world_item = wi
 
     def _check_bullet_hits(self) -> None:
+        active    = self.player.get_active_weapon()
+        armor_pen = active.stats.armor_pen if active else 0
         hits = pygame.sprite.groupcollide(self.enemies, self.bullets, False, True)
         for enemy, bullet_list in hits.items():
             for bullet in bullet_list:
-                enemy.take_damage(bullet.damage)
-                if bullet.stopping_effect > 0 and bullet.velocity.length() > 0:
-                    enemy.apply_stopping_effect(bullet.velocity, bullet.stopping_effect)
+                damage, se = resolve_hit(
+                    base_damage=bullet.damage,
+                    base_se=bullet.stopping_effect,
+                    armor_pen=armor_pen,
+                    armor_class=enemy.armor_class,
+                    settings=self.settings,
+                )
+                enemy.take_damage(damage)
+                if se > 0 and bullet.velocity.length() > 0:
+                    enemy.apply_stopping_effect(bullet.velocity, se)
 
     def _check_bullet_wall_hits(self) -> None:
         pygame.sprite.groupcollide(self.bullets, self.level.walls, True, False)
 
     def _check_contact_damage(self) -> None:
-        s = self.settings
+        s           = self.settings
+        armor_class = self.player.get_armor_class()
         for enemy in self.enemies:
-            enemy.try_deal_contact_damage(
-                self.player, s.enemy_contact_damage, s.enemy_contact_cooldown
+            damage, _ = resolve_hit(
+                base_damage=s.enemy_contact_damage,
+                base_se=0.0,
+                armor_pen=0,
+                armor_class=armor_class,
+                settings=s,
             )
+            enemy.try_deal_contact_damage(self.player, damage, s.enemy_contact_cooldown)
 
     def _draw(self) -> None:
         self.screen.fill(self.settings.bg_color)

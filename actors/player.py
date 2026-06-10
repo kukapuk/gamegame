@@ -54,6 +54,15 @@ class Player(Actor):
             return False
         self.active_weapon_slot = slot_index
         return True
+    
+    def get_armor_class(self) -> int:
+        from items.armor import ArmorItem
+        armor_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.ARMOR]
+        if armor_slots and not armor_slots[0].empty:
+            item = armor_slots[0].item
+            if isinstance(item, ArmorItem):
+                return item.armor_class
+        return 0
 
     def try_dash(self) -> None:
         if self._is_dashing:

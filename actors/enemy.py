@@ -16,6 +16,7 @@ class Enemy(Actor):
         self,
         pos: tuple[float, float],
         target: Actor,
+        armor_class: int = 0,
         groups: list = (),
     ) -> None:
         super().__init__(
@@ -24,7 +25,8 @@ class Enemy(Actor):
             color=(220, 60, 60),
             groups=groups,
         )
-        self.target = target
+        self.target      = target
+        self.armor_class = armor_class
         self.stats = Stats(
             max_hp=60,
             speed=120.0,

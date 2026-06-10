@@ -106,7 +106,6 @@ class Weapon(pygame.sprite.Sprite):
                 damage=s.damage,
                 size=s.bullet_size,
                 color=s.bullet_color,
-                armor_penetration=s.armor_penetration,
                 stopping_effect=s.stopping_effect,
                 groups=[self.bullet_group, self.all_sprites],
             )

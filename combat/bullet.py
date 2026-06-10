@@ -16,16 +16,14 @@ class Bullet(pygame.sprite.Sprite):
         damage: int,
         size: int,
         color: tuple[int, int, int],
-        armor_penetration: float,
         stopping_effect: float,
         groups: list = (),
     ) -> None:
         super().__init__(*groups)
 
-        self.damage            = damage
-        self.armor_penetration = armor_penetration
-        self.stopping_effect   = stopping_effect
-        self.lifetime          = lifetime
+        self.damage          = damage
+        self.stopping_effect = stopping_effect
+        self.lifetime        = lifetime
 
         self.image = pygame.Surface((size, size), pygame.SRCALPHA)
         self.image.fill(color)

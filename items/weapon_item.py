@@ -9,7 +9,7 @@ class WeaponStats:
     fire_rate: float
     bullet_speed: float
     bullet_lifetime: float
-    armor_penetration: float
+    armor_pen: int
     stopping_effect: float
     auto_fire: bool
     spread: float
@@ -55,7 +55,7 @@ def make_carbine() -> WeaponItem:
             fire_rate=0.12,
             bullet_speed=620.0,
             bullet_lifetime=1.8,
-            armor_penetration=0.5,
+            armor_pen=2,
             stopping_effect=0.3,
             auto_fire=True,
             spread=2.0,
@@ -81,7 +81,7 @@ def make_shotgun() -> WeaponItem:
             fire_rate=0.75,
             bullet_speed=480.0,
             bullet_lifetime=0.5,
-            armor_penetration=0.15,
+            armor_pen=0,
             stopping_effect=0.85,
             auto_fire=False,
             spread=18.0,
@@ -107,7 +107,7 @@ def make_sniper() -> WeaponItem:
             fire_rate=1.4,
             bullet_speed=1100.0,
             bullet_lifetime=2.5,
-            armor_penetration=0.95,
+            armor_pen=3,
             stopping_effect=0.1,
             auto_fire=False,
             spread=0.0,

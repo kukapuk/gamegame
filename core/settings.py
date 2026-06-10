@@ -52,3 +52,10 @@ class Settings:
     # Inventory
     backpack_hold_time: float = 1.0
     pouch_hotkeys: tuple = (pygame.K_z, pygame.K_x, pygame.K_c, pygame.K_v)
+
+    # Armor penetration
+    armor_partial_chance: float = 0.5
+    armor_damage_gap1: float    = 0.5
+    armor_damage_gap2: float    = 0.35
+    armor_damage_gap3: float    = 0.2
+    armor_pen_se_mult: float    = 0.1
