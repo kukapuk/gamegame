@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import pygame
 
 
 @dataclass
@@ -10,7 +11,7 @@ class Settings:
     fps: int = 60
 
     # Player
-    player_speed: float = 250.0      # pixels per second
+    player_speed: float = 250.0
     player_size: int = 32
     player_color: tuple = (80, 140, 255)
 
@@ -33,16 +34,21 @@ class Settings:
     bullet_damage: int = 10
     fire_rate: float = 0.15
 
+    # Enemy
     enemy_hp_bar_width: int = 32
     enemy_hp_bar_height: int = 4
     enemy_hp_bar_color: tuple = (220, 50, 50)
     enemy_hp_bar_bg: tuple = (60, 20, 20)
-
     enemy_contact_damage: int = 15
     enemy_contact_cooldown: float = 0.5
 
+    # Player HUD
     player_hp_bar_width: int = 200
     player_hp_bar_height: int = 16
     player_hp_bar_color: tuple = (60, 200, 90)
     player_hp_bar_bg: tuple = (40, 40, 40)
     player_hp_bar_margin: int = 20
+
+    # Inventory
+    backpack_hold_time: float = 1.0
+    pouch_hotkeys: tuple = (pygame.K_z, pygame.K_x, pygame.K_c, pygame.K_v)

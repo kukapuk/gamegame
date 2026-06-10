@@ -39,6 +39,22 @@ class Player(Actor):
         )
         self.backpack = Inventory(capacity=16)
 
+        self.active_weapon_slot: int = 0
+
+    def get_active_weapon(self):
+        weapon_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.WEAPON]
+        if self.active_weapon_slot >= len(weapon_slots):
+            return None
+        slot = weapon_slots[self.active_weapon_slot]
+        return slot.item if not slot.empty else None
+
+    def switch_weapon(self, slot_index: int) -> bool:
+        weapon_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.WEAPON]
+        if slot_index >= len(weapon_slots):
+            return False
+        self.active_weapon_slot = slot_index
+        return True
+
     def try_dash(self) -> None:
         if self._is_dashing:
             return

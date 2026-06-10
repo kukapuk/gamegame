@@ -10,6 +10,8 @@ class Enemy(Actor):
     Позже можно добавить стейт-машину: patrol → chase → attack.
     """
 
+    KNOCKBACK_FRICTION = 8.0
+
     def __init__(
         self,
         pos: tuple[float, float],
@@ -29,10 +31,17 @@ class Enemy(Actor):
             dash_cooldown=999,
             dash_stamina_cost=999,
         )
-        self.hp = self.stats.max_hp
-        self.max_hp = self.stats.max_hp
-        self.speed = self.stats.speed
+        self.hp               = self.stats.max_hp
+        self.max_hp           = self.stats.max_hp
+        self.speed            = self.stats.speed
         self._contact_cooldown: float = 0.0
+        self._stun_timer: float       = 0.0
+        self._knockback_vel           = pygame.math.Vector2(0, 0)
+
+    def apply_stopping_effect(self, bullet_direction: pygame.math.Vector2, stopping_effect: float) -> None:
+        knockback_force = stopping_effect * 420.0
+        self._knockback_vel = bullet_direction.normalize() * knockback_force
+        self._stun_timer    = stopping_effect * 0.45
 
     def try_deal_contact_damage(self, target: Actor, damage: int, cooldown: float) -> None:
         if self._contact_cooldown > 0:
@@ -50,5 +59,13 @@ class Enemy(Actor):
 
     def update(self, dt: float) -> None:
         self._contact_cooldown = max(0.0, self._contact_cooldown - dt)
-        self._chase()
+
+        if self._stun_timer > 0:
+            self._stun_timer -= dt
+            self._knockback_vel *= max(0.0, 1.0 - self.KNOCKBACK_FRICTION * dt)
+            self.velocity = self._knockback_vel.copy()
+        else:
+            self._knockback_vel.update(0, 0)
+            self._chase()
+
         super().update(dt)

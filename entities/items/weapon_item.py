@@ -1,0 +1,111 @@
+import pygame
+from dataclasses import dataclass
+from entities.items.item import Item, ItemType
+
+
+@dataclass
+class WeaponStats:
+    damage: int
+    fire_rate: float
+    bullet_speed: float
+    bullet_lifetime: float
+    armor_penetration: float
+    stopping_effect: float
+    auto_fire: bool
+    spread: float
+    pellets: int
+    width: int
+    height: int
+    color: tuple[int, int, int]
+    bullet_size: int
+    bullet_color: tuple[int, int, int]
+
+
+class WeaponItem(Item):
+    """
+    Оружие как предмет инвентаря.
+    Хранит все характеристики стрельбы — Weapon-спрайт читает их отсюда.
+    """
+
+    def __init__(self, name: str, stats: WeaponStats, icon_color: tuple) -> None:
+        super().__init__(
+            name=name,
+            item_type=ItemType.WEAPON,
+            icon_color=icon_color,
+            stackable=False,
+        )
+        self.stats = stats
+
+    def get_tooltip(self) -> str:
+        ap  = int(self.stats.armor_penetration * 100)
+        se  = int(self.stats.stopping_effect   * 100)
+        return f"{self.name}  DMG:{self.stats.damage}  AP:{ap}%  SE:{se}%"
+
+
+def make_carbine() -> WeaponItem:
+    return WeaponItem(
+        name="Carbine",
+        icon_color=(100, 160, 100),
+        stats=WeaponStats(
+            damage=12,
+            fire_rate=0.12,
+            bullet_speed=620.0,
+            bullet_lifetime=1.8,
+            armor_penetration=0.5,
+            stopping_effect=0.3,
+            auto_fire=True,
+            spread=2.0,
+            pellets=1,
+            width=22,
+            height=8,
+            color=(120, 180, 100),
+            bullet_size=5,
+            bullet_color=(220, 240, 120),
+        ),
+    )
+
+
+def make_shotgun() -> WeaponItem:
+    return WeaponItem(
+        name="Shotgun",
+        icon_color=(180, 120, 60),
+        stats=WeaponStats(
+            damage=18,
+            fire_rate=0.75,
+            bullet_speed=480.0,
+            bullet_lifetime=0.5,
+            armor_penetration=0.15,
+            stopping_effect=0.85,
+            auto_fire=False,
+            spread=18.0,
+            pellets=7,
+            width=26,
+            height=10,
+            color=(200, 140, 70),
+            bullet_size=4,
+            bullet_color=(255, 200, 80),
+        ),
+    )
+
+
+def make_sniper() -> WeaponItem:
+    return WeaponItem(
+        name="Sniper Rifle",
+        icon_color=(80, 120, 200),
+        stats=WeaponStats(
+            damage=85,
+            fire_rate=1.4,
+            bullet_speed=1100.0,
+            bullet_lifetime=2.5,
+            armor_penetration=0.95,
+            stopping_effect=0.1,
+            auto_fire=False,
+            spread=0.0,
+            pellets=1,
+            width=34,
+            height=6,
+            color=(100, 140, 220),
+            bullet_size=5,
+            bullet_color=(180, 220, 255),
+        ),
+    )

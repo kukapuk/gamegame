@@ -1,39 +1,43 @@
 import pygame
-from core.settings import Settings
 
 
 class Bullet(pygame.sprite.Sprite):
     """
     Простой снаряд — летит по прямой, живёт ограниченное время.
-    Sprite достаточно.
+    Параметры берёт напрямую, не из Settings — каждое оружие задаёт свои.
     """
 
     def __init__(
         self,
         pos: tuple[float, float],
         direction: pygame.math.Vector2,
-        settings: Settings,
+        speed: float,
+        lifetime: float,
+        damage: int,
+        size: int,
+        color: tuple[int, int, int],
+        armor_penetration: float,
+        stopping_effect: float,
         groups: list = (),
     ) -> None:
         super().__init__(*groups)
 
-        self.settings = settings
-        self.damage = settings.bullet_damage
-        self.lifetime = settings.bullet_lifetime
+        self.damage            = damage
+        self.armor_penetration = armor_penetration
+        self.stopping_effect   = stopping_effect
+        self.lifetime          = lifetime
 
-        size = settings.bullet_size
         self.image = pygame.Surface((size, size), pygame.SRCALPHA)
-        self.image.fill(settings.bullet_color)
-        self.rect = self.image.get_rect(center=pos)
+        self.image.fill(color)
+        self.rect  = self.image.get_rect(center=pos)
 
-        self.pos = pygame.math.Vector2(pos)
-        self.velocity = direction.normalize() * settings.bullet_speed
+        self.pos      = pygame.math.Vector2(pos)
+        self.velocity = direction.normalize() * speed
 
     def update(self, dt: float) -> None:
         self.lifetime -= dt
         if self.lifetime <= 0:
-            self.kill() # удаляет из всех групп автоматически
+            self.kill()
             return
-
         self.pos += self.velocity * dt
         self.rect.center = (round(self.pos.x), round(self.pos.y))

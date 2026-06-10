@@ -6,13 +6,11 @@ from entities.actors.player import Player
 from entities.combat.weapon import Weapon
 from entities.actors.enemy import Enemy
 from entities.items.consumable import make_medkit
+from entities.items.weapon_item import make_carbine, make_shotgun, make_sniper
 
 
 class Game:
     """Central game loop, renderer, and scene owner."""
-
-    POUCH_HOTKEYS = [pygame.K_z, pygame.K_x, pygame.K_c, pygame.K_v]
-    BACKPACK_HOLD = 1.0
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -29,6 +27,7 @@ class Game:
 
         spawn = (settings.screen_width // 2, settings.screen_height // 2)
         self.player = Player(spawn, settings, groups=[self.all_sprites])
+
         self.weapon = Weapon(
             owner=self.player,
             settings=settings,
@@ -38,6 +37,7 @@ class Game:
 
         self._spawn_enemies()
         self._give_test_items()
+        self._sync_weapon()
 
         self.camera = Camera(settings)
         self.hud    = HUD(settings, self.player)
@@ -46,15 +46,31 @@ class Game:
         self._i_held_time: float = 0.0
         self._i_triggered: bool  = False
 
+    def _sync_weapon(self) -> None:
+        item = self.player.get_active_weapon()
+        if item:
+            self.weapon.equip(item)
+        else:
+            self.weapon.equip(None)
+
     def _spawn_enemies(self) -> None:
         for pos in [(800, 400), (300, 600), (1000, 200), (500, 800), (1200, 500)]:
             Enemy(pos=pos, target=self.player, groups=[self.all_sprites, self.enemies])
 
     def _give_test_items(self) -> None:
+        weapon_slots = [s for s in self.player.pouch.typed_slots if s.allowed_type is not None]
+        weapons = [make_carbine(), make_shotgun()]
+        for slot, weapon in zip(weapon_slots, weapons):
+            slot.put(weapon)
+
         for i in range(2):
             slot = self.player.backpack.get_slot(i)
             if slot:
                 slot.put(make_medkit(30))
+
+        slot = self.player.backpack.get_slot(2)
+        if slot:
+            slot.put(make_sniper())
 
     def run(self) -> None:
         while self.running:
@@ -68,7 +84,7 @@ class Game:
         keys = pygame.key.get_pressed()
         if keys[pygame.K_i]:
             self._i_held_time += dt
-            if self._i_held_time >= self.BACKPACK_HOLD and not self._i_triggered:
+            if self._i_held_time >= self.settings.backpack_hold_time and not self._i_triggered:
                 self._i_triggered = True
                 if self.hud.is_open():
                     self.hud.close_backpack()
@@ -86,6 +102,12 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
+                elif event.key == pygame.K_1:
+                    self.player.switch_weapon(0)
+                    self._sync_weapon()
+                elif event.key == pygame.K_2:
+                    self.player.switch_weapon(1)
+                    self._sync_weapon()
                 elif event.key == pygame.K_TAB:
                     self.hud.toggle_pouch()
                 elif event.key == pygame.K_F1:
@@ -95,7 +117,7 @@ class Game:
                 else:
                     if not self.hud.is_open():
                         typed_count = len(self.player.pouch.typed_slots)
-                        for i, key in enumerate(self.POUCH_HOTKEYS):
+                        for i, key in enumerate(self.settings.pouch_hotkeys):
                             if event.key == key:
                                 self.player.pouch.use_slot(typed_count + i, self.player)
 
@@ -106,6 +128,7 @@ class Game:
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
                     self.hud.handle_mouse_up(event.pos)
+                    self._sync_weapon()
 
             elif event.type == pygame.MOUSEMOTION:
                 self.hud.handle_mouse_motion(event.pos)
@@ -128,6 +151,8 @@ class Game:
         for enemy, bullet_list in hits.items():
             for bullet in bullet_list:
                 enemy.take_damage(bullet.damage)
+                if bullet.stopping_effect > 0 and bullet.velocity.length() > 0:
+                    enemy.apply_stopping_effect(bullet.velocity, bullet.stopping_effect)
 
     def _check_contact_damage(self) -> None:
         s = self.settings
@@ -141,7 +166,7 @@ class Game:
         self._draw_grid()
         self._draw_sprites()
         self._draw_enemy_hp_bars()
-        self.hud.draw(self.screen, i_hold_progress=self._i_held_time / self.BACKPACK_HOLD)
+        self.hud.draw(self.screen, i_hold_progress=self._i_held_time / self.settings.backpack_hold_time)
         if self.debug:
             self._draw_debug_info()
         pygame.display.flip()
@@ -164,8 +189,10 @@ class Game:
             y += gs
 
     def _draw_sprites(self) -> None:
-        for sprite in [*self.bullets.sprites(), *self.enemies.sprites(), self.player, self.weapon]:
+        for sprite in [*self.bullets.sprites(), *self.enemies.sprites(), self.player]:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
+        if self.weapon.has_weapon:
+            self.screen.blit(self.weapon.image, self.camera.apply(self.weapon.rect))
 
     def _draw_enemy_hp_bars(self) -> None:
         s = self.settings
