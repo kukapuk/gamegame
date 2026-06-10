@@ -3,9 +3,12 @@ from core.settings import Settings
 from core.camera import Camera
 from entities.player import Player
 from entities.weapon import Weapon
+from entities.enemy import Enemy
 
 
 class Game:
+    """Central game loop, renderer, and scene owner."""
+
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.screen = pygame.display.set_mode(
@@ -15,13 +18,12 @@ class Game:
         self.clock = pygame.time.Clock()
         self.running = True
 
-        # -- Sprite groups --
         self.all_sprites = pygame.sprite.Group()
-        self.bullets = pygame.sprite.Group()      # отдельная группа для коллизий
+        self.bullets = pygame.sprite.Group()
+        self.enemies = pygame.sprite.Group()
 
-        # -- Entities --
         spawn = (settings.screen_width // 2, settings.screen_height // 2)
-        self.player = Player(spawn, settings, self.all_sprites)
+        self.player = Player(spawn, settings, groups=[self.all_sprites])
 
         self.weapon = Weapon(
             owner=self.player,
@@ -30,13 +32,18 @@ class Game:
             all_sprites=self.all_sprites,
         )
 
-        # -- Camera --
-        self.camera = Camera(settings)
+        self._spawn_enemies()
 
-        # -- Debug --
+        self.camera = Camera(settings)
         self.debug = False
 
-    # ------------------------------------------------------------------
+    def _spawn_enemies(self) -> None:
+        positions = [
+            (800, 400), (300, 600), (1000, 200),
+            (500, 800), (1200, 500),
+        ]
+        for pos in positions:
+            Enemy(pos=pos, target=self.player, groups=[self.all_sprites, self.enemies])
 
     def run(self) -> None:
         while self.running:
@@ -44,8 +51,6 @@ class Game:
             self._handle_events()
             self._update(dt)
             self._draw()
-
-    # ------------------------------------------------------------------
 
     def _handle_events(self) -> None:
         for event in pygame.event.get():
@@ -60,28 +65,31 @@ class Game:
                     self.player.try_dash()
 
     def _update(self, dt: float) -> None:
-        # Обычные спрайты — без доп. аргументов
         self.player.update(dt)
+        self.enemies.update(dt)
         self.bullets.update(dt)
-
-        # Оружие требует camera_offset для пересчёта позиции мыши
         self.weapon.update(dt, self.camera.get_offset())
 
-        # Стрельба — зажатая кнопка мыши (автоогонь)
         if pygame.mouse.get_pressed()[0]:
             self.weapon.try_shoot()
 
+        self._check_bullet_hits()
         self.camera.follow(self.player)
+
+    def _check_bullet_hits(self) -> None:
+        hits = pygame.sprite.groupcollide(self.enemies, self.bullets, False, True)
+        for enemy, bullet_list in hits.items():
+            for bullet in bullet_list:
+                enemy.take_damage(bullet.damage)
 
     def _draw(self) -> None:
         self.screen.fill(self.settings.bg_color)
         self._draw_grid()
         self._draw_sprites()
+        self._draw_hp_bars()
         if self.debug:
             self._draw_debug_info()
         pygame.display.flip()
-
-    # ------------------------------------------------------------------
 
     def _draw_grid(self) -> None:
         gs = self.settings.grid_size
@@ -93,23 +101,34 @@ class Game:
 
         x = start_x
         while x < offset.x + w + gs:
-            sx = x - offset.x
             pygame.draw.line(self.screen, self.settings.grid_color,
-                             (sx, 0), (sx, h))
+                             (x - offset.x, 0), (x - offset.x, h))
             x += gs
 
         y = start_y
         while y < offset.y + h + gs:
-            sy = y - offset.y
             pygame.draw.line(self.screen, self.settings.grid_color,
-                             (0, sy), (w, sy))
+                             (0, y - offset.y), (w, y - offset.y))
             y += gs
 
     def _draw_sprites(self) -> None:
-        # Рендерим в нужном порядке: сначала пули (под игроком), потом игрок, потом оружие
-        for sprite in [*self.bullets.sprites(), self.player, self.weapon]:
-            screen_rect = self.camera.apply(sprite.rect)
-            self.screen.blit(sprite.image, screen_rect)
+        for sprite in [*self.bullets.sprites(), *self.enemies.sprites(), self.player, self.weapon]:
+            self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
+
+    def _draw_hp_bars(self) -> None:
+        s = self.settings
+        for enemy in self.enemies:
+            bar_rect = self.camera.apply(enemy.rect)
+            bx = bar_rect.centerx - s.enemy_hp_bar_width // 2
+            by = bar_rect.top - 8
+
+            pygame.draw.rect(self.screen, s.enemy_hp_bar_bg,
+                             (bx, by, s.enemy_hp_bar_width, s.enemy_hp_bar_height))
+
+            fill = int(s.enemy_hp_bar_width * enemy.hp / enemy.max_hp)
+            if fill > 0:
+                pygame.draw.rect(self.screen, s.enemy_hp_bar_color,
+                                 (bx, by, fill, s.enemy_hp_bar_height))
 
     def _draw_debug_info(self) -> None:
         font = pygame.font.SysFont("monospace", 16)
@@ -118,10 +137,9 @@ class Game:
             f"FPS: {self.clock.get_fps():.0f}",
             f"pos: ({p.pos.x:.0f}, {p.pos.y:.0f})",
             f"vel: ({p.velocity.x:.0f}, {p.velocity.y:.0f})",
-            f"aim: ({self.weapon.aim_dir.x:.2f}, {self.weapon.aim_dir.y:.2f})",
             f"stamina: {p.stamina:.0f} / {p.stats.max_stamina:.0f}",
-            f"dash cd: {p._dash_cooldown:.2f}s  dashing: {p._is_dashing}",
-            f"bullets: {len(self.bullets)}",
+            f"dash cd: {p._dash_cooldown:.2f}s",
+            f"bullets: {len(self.bullets)}  enemies: {len(self.enemies)}",
         ]
         for i, line in enumerate(lines):
             surf = font.render(line, True, (180, 220, 180))

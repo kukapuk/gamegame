@@ -32,3 +32,8 @@ class Settings:
     bullet_lifetime: float = 2.0
     bullet_damage: int = 10
     fire_rate: float = 0.15
+
+    enemy_hp_bar_width: int = 32
+    enemy_hp_bar_height: int = 4
+    enemy_hp_bar_color: tuple = (220, 50, 50)
+    enemy_hp_bar_bg: tuple = (60, 20, 20)
