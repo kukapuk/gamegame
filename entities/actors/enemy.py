@@ -1,5 +1,5 @@
 import pygame
-from entities.actor import Actor
+from entities.actors.actor import Actor
 from entities.stats import Stats
 
 

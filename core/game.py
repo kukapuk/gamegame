@@ -1,9 +1,9 @@
 import pygame
 from core.settings import Settings
 from core.camera import Camera
-from entities.player import Player
-from entities.weapon import Weapon
-from entities.enemy import Enemy
+from entities.actors.player import Player
+from entities.combat.weapon import Weapon
+from entities.actors.enemy import Enemy
 
 
 class Game:

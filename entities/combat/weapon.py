@@ -1,7 +1,7 @@
 import pygame
 import math
 from core.settings import Settings
-from entities.bullet import Bullet
+from entities.combat.bullet import Bullet
 
 
 class Weapon(pygame.sprite.Sprite):
