@@ -1,6 +1,8 @@
 import pygame
 from entities.actors.actor import Actor
 from entities.stats import Stats
+from entities.items.inventory import Inventory
+from entities.items.item import ItemType
 from core.settings import Settings
 
 
@@ -30,6 +32,12 @@ class Player(Actor):
         self._dash_timer: float = 0.0
         self._dash_velocity = pygame.math.Vector2(0, 0)
         self._is_dashing: bool = False
+
+        self.pouch = Inventory(
+            capacity=4,
+            typed_slots=[ItemType.WEAPON, ItemType.WEAPON, ItemType.ARMOR],
+        )
+        self.backpack = Inventory(capacity=16)
 
     def try_dash(self) -> None:
         if self._is_dashing:
