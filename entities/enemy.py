@@ -32,6 +32,14 @@ class Enemy(Actor):
         self.hp = self.stats.max_hp
         self.max_hp = self.stats.max_hp
         self.speed = self.stats.speed
+        self._contact_cooldown: float = 0.0
+
+    def try_deal_contact_damage(self, target: Actor, damage: int, cooldown: float) -> None:
+        if self._contact_cooldown > 0:
+            return
+        if self.rect.colliderect(target.rect):
+            target.take_damage(damage)
+            self._contact_cooldown = cooldown
 
     def _chase(self) -> None:
         delta = self.target.pos - self.pos
@@ -41,5 +49,6 @@ class Enemy(Actor):
             self.velocity.update(0, 0)
 
     def update(self, dt: float) -> None:
+        self._contact_cooldown = max(0.0, self._contact_cooldown - dt)
         self._chase()
         super().update(dt)

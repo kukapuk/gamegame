@@ -74,6 +74,7 @@ class Game:
             self.weapon.try_shoot()
 
         self._check_bullet_hits()
+        self._check_contact_damage()
         self.camera.follow(self.player)
 
     def _check_bullet_hits(self) -> None:
@@ -82,11 +83,21 @@ class Game:
             for bullet in bullet_list:
                 enemy.take_damage(bullet.damage)
 
+    def _check_contact_damage(self) -> None:
+        s = self.settings
+        for enemy in self.enemies:
+            enemy.try_deal_contact_damage(
+                self.player,
+                s.enemy_contact_damage,
+                s.enemy_contact_cooldown,
+            )
+
     def _draw(self) -> None:
         self.screen.fill(self.settings.bg_color)
         self._draw_grid()
         self._draw_sprites()
         self._draw_hp_bars()
+        self._draw_player_hud()
         if self.debug:
             self._draw_debug_info()
         pygame.display.flip()
@@ -129,6 +140,28 @@ class Game:
             if fill > 0:
                 pygame.draw.rect(self.screen, s.enemy_hp_bar_color,
                                  (bx, by, fill, s.enemy_hp_bar_height))
+
+    def _draw_player_hud(self) -> None:
+        s = self.settings
+        font = pygame.font.SysFont("monospace", 13)
+
+        bw = s.player_hp_bar_width
+        bh = s.player_hp_bar_height
+        margin = s.player_hp_bar_margin
+
+        bx = margin
+        by = s.screen_height - margin - bh
+
+        pygame.draw.rect(self.screen, s.player_hp_bar_bg, (bx, by, bw, bh))
+
+        fill = int(bw * self.player.hp / self.player.max_hp)
+        if fill > 0:
+            pygame.draw.rect(self.screen, s.player_hp_bar_color, (bx, by, fill, bh))
+
+        pygame.draw.rect(self.screen, (80, 80, 80), (bx, by, bw, bh), 1)
+
+        label = font.render(f"HP  {self.player.hp} / {self.player.max_hp}", True, (200, 200, 200))
+        self.screen.blit(label, (bx, by - 18))
 
     def _draw_debug_info(self) -> None:
         font = pygame.font.SysFont("monospace", 16)

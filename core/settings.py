@@ -10,7 +10,7 @@ class Settings:
     fps: int = 60
 
     # Player
-    player_speed: float = 250.0
+    player_speed: float = 250.0      # pixels per second
     player_size: int = 32
     player_color: tuple = (80, 140, 255)
 
@@ -37,3 +37,12 @@ class Settings:
     enemy_hp_bar_height: int = 4
     enemy_hp_bar_color: tuple = (220, 50, 50)
     enemy_hp_bar_bg: tuple = (60, 20, 20)
+
+    enemy_contact_damage: int = 15
+    enemy_contact_cooldown: float = 0.5
+
+    player_hp_bar_width: int = 200
+    player_hp_bar_height: int = 16
+    player_hp_bar_color: tuple = (60, 200, 90)
+    player_hp_bar_bg: tuple = (40, 40, 40)
+    player_hp_bar_margin: int = 20
