@@ -12,6 +12,7 @@ class Game:
     """Central game loop, renderer, and scene owner."""
 
     POUCH_HOTKEYS = [pygame.K_z, pygame.K_x, pygame.K_c, pygame.K_v]
+    BACKPACK_HOLD = 1.0
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -28,7 +29,6 @@ class Game:
 
         spawn = (settings.screen_width // 2, settings.screen_height // 2)
         self.player = Player(spawn, settings, groups=[self.all_sprites])
-
         self.weapon = Weapon(
             owner=self.player,
             settings=settings,
@@ -43,73 +43,72 @@ class Game:
         self.hud    = HUD(settings, self.player)
         self.debug  = False
 
-        self.backpack_open   = False
-        self._backpack_timer = 0.0
-        self._backpack_delay = 1.5
+        self._i_held_time: float = 0.0
+        self._i_triggered: bool  = False
 
     def _spawn_enemies(self) -> None:
         for pos in [(800, 400), (300, 600), (1000, 200), (500, 800), (1200, 500)]:
             Enemy(pos=pos, target=self.player, groups=[self.all_sprites, self.enemies])
 
     def _give_test_items(self) -> None:
-        typed_count = len(self.player.pouch.typed_slots)
-        for i in range(3):
-            slot_index = typed_count + i
-            slot = self.player.pouch.get_slot(slot_index)
+        for i in range(2):
+            slot = self.player.backpack.get_slot(i)
             if slot:
                 slot.put(make_medkit(30))
 
     def run(self) -> None:
         while self.running:
             dt = self.clock.tick(self.settings.fps) / 1000.0
-            self._handle_events(dt)
+            self._handle_i_hold(dt)
+            self._handle_events()
             self._update(dt)
             self._draw()
 
-    def _handle_events(self, dt: float) -> None:
-        keys_held = pygame.key.get_pressed()
-
-        if keys_held[pygame.K_i]:
-            self._backpack_timer += dt
-            if self._backpack_timer >= self._backpack_delay:
-                self.backpack_open = True
+    def _handle_i_hold(self, dt: float) -> None:
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_i]:
+            self._i_held_time += dt
+            if self._i_held_time >= self.BACKPACK_HOLD and not self._i_triggered:
+                self._i_triggered = True
+                if self.hud.is_open():
+                    self.hud.close_backpack()
+                else:
+                    self.hud.open_backpack()
         else:
-            self._backpack_timer = 0.0
-            if not keys_held[pygame.K_i]:
-                pass
+            self._i_held_time = 0.0
+            self._i_triggered = False
 
+    def _handle_events(self) -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    if self.backpack_open:
-                        self.backpack_open = False
-                    else:
-                        self.running = False
-
+                    self.running = False
                 elif event.key == pygame.K_TAB:
                     self.hud.toggle_pouch()
-
                 elif event.key == pygame.K_F1:
                     self.debug = not self.debug
-
                 elif event.key == pygame.K_SPACE:
                     self.player.try_dash()
-
                 else:
-                    typed_count = len(self.player.pouch.typed_slots)
-                    for i, key in enumerate(self.POUCH_HOTKEYS):
-                        if event.key == key:
-                            self.player.pouch.use_slot(typed_count + i, self.player)
+                    if not self.hud.is_open():
+                        typed_count = len(self.player.pouch.typed_slots)
+                        for i, key in enumerate(self.POUCH_HOTKEYS):
+                            if event.key == key:
+                                self.player.pouch.use_slot(typed_count + i, self.player)
+
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    self.hud.handle_mouse_down(event.pos)
+
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1:
+                    self.hud.handle_mouse_up(event.pos)
 
             elif event.type == pygame.MOUSEMOTION:
                 self.hud.handle_mouse_motion(event.pos)
-
-            elif event.type == pygame.KEYUP:
-                if event.key == pygame.K_i and not self.backpack_open:
-                    self._backpack_timer = 0.0
 
     def _update(self, dt: float) -> None:
         self.player.update(dt)
@@ -117,7 +116,7 @@ class Game:
         self.bullets.update(dt)
         self.weapon.update(dt, self.camera.get_offset())
 
-        if pygame.mouse.get_pressed()[0]:
+        if pygame.mouse.get_pressed()[0] and not self.hud.is_open():
             self.weapon.try_shoot()
 
         self._check_bullet_hits()
@@ -142,10 +141,7 @@ class Game:
         self._draw_grid()
         self._draw_sprites()
         self._draw_enemy_hp_bars()
-        self.hud.draw(self.screen)
-        if self.backpack_open:
-            self._draw_backpack()
-        self.hud.draw_tooltip(self.screen, pygame.mouse.get_pos())
+        self.hud.draw(self.screen, i_hold_progress=self._i_held_time / self.BACKPACK_HOLD)
         if self.debug:
             self._draw_debug_info()
         pygame.display.flip()
@@ -184,44 +180,6 @@ class Game:
                 pygame.draw.rect(self.screen, s.enemy_hp_bar_color,
                                  (bx, by, fill, s.enemy_hp_bar_height))
 
-    def _draw_backpack(self) -> None:
-        ss = HUD.SLOT_SIZE
-        pad = HUD.SLOT_PAD
-        cols = 4
-        slots = self.player.backpack.all_slots()
-
-        rows = (len(slots) + cols - 1) // cols
-        panel_w = cols * ss + (cols - 1) * pad + 24
-        panel_h = rows * ss + (rows - 1) * pad + 50
-
-        cx = self.settings.screen_width // 2
-        cy = self.settings.screen_height // 2
-        panel_rect = pygame.Rect(cx - panel_w // 2, cy - panel_h // 2, panel_w, panel_h)
-
-        panel = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
-        panel.fill((20, 22, 32, 230))
-        self.screen.blit(panel, panel_rect.topleft)
-        pygame.draw.rect(self.screen, (60, 65, 90), panel_rect, 1)
-
-        font = self.hud.font_md
-        title = font.render("Backpack", True, (180, 180, 200))
-        self.screen.blit(title, (panel_rect.x + 12, panel_rect.y + 10))
-
-        ox = panel_rect.x + 12
-        oy = panel_rect.y + 36
-
-        for i, slot in enumerate(slots):
-            col = i % cols
-            row = i // cols
-            x = ox + col * (ss + pad)
-            y = oy + row * (ss + pad)
-            rect = pygame.Rect(x, y, ss, ss)
-            pygame.draw.rect(self.screen, HUD.SLOT_BG, rect)
-            pygame.draw.rect(self.screen, HUD.SLOT_BORDER, rect, 1)
-            if not slot.empty:
-                icon = slot.item.icon
-                self.screen.blit(icon, icon.get_rect(center=rect.center))
-
     def _draw_debug_info(self) -> None:
         font = pygame.font.SysFont("monospace", 16)
         p = self.player
@@ -231,7 +189,7 @@ class Game:
             f"stamina: {p.stamina:.0f} / {p.stats.max_stamina:.0f}",
             f"dash cd: {p._dash_cooldown:.2f}s",
             f"bullets: {len(self.bullets)}  enemies: {len(self.enemies)}",
-            f"backpack: {'open' if self.backpack_open else 'closed'}  (hold I {self._backpack_timer:.1f}s)",
+            f"backpack: {'open' if self.hud.is_open() else 'closed'}  [{self._i_held_time:.1f}s]",
         ]
         for i, line in enumerate(lines):
             surf = font.render(line, True, (180, 220, 180))
