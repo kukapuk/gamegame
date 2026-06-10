@@ -110,8 +110,8 @@ class Player(Actor):
                 self.stamina + self.stats.stamina_regen * dt,
             )
 
-    def update(self, dt: float) -> None:
+    def update(self, dt: float, walls: pygame.sprite.Group = None) -> None:
         self._handle_input()
         self._update_dash(dt)
         self._update_stamina(dt)
-        super().update(dt)
+        super().update(dt, walls)

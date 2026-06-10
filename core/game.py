@@ -2,6 +2,7 @@ import pygame
 from core.settings import Settings
 from core.camera import Camera
 from core.hud import HUD
+from core.level import Level
 from actors.player import Player
 from combat.weapon import Weapon
 from actors.enemy import Enemy
@@ -28,7 +29,9 @@ class Game:
         self.enemies     = pygame.sprite.Group()
         self.world_items = pygame.sprite.Group()
 
-        spawn = (settings.screen_width // 2, settings.screen_height // 2)
+        self.level = Level("./levels/level_1.txt", settings.grid_size)
+
+        spawn = self.level.player_spawn
         self.player = Player(spawn, settings, groups=[self.all_sprites])
 
         self.weapon = Weapon(
@@ -76,12 +79,15 @@ class Game:
                 slot.put(item)
 
     def _spawn_world_items(self) -> None:
+        from items.ammo import make_ammo, AmmoType
         cx, cy = self.settings.screen_width // 2, self.settings.screen_height // 2
         items = [
-            (make_carbine(), (cx + 120, cy + 60)),
-            (make_shotgun(), (cx - 140, cy + 80)),
-            (make_sniper(),  (cx + 60,  cy - 120)),
-            (make_ammo(AmmoType.CARBINE, 90), (cx + 60,  cy - 180)),
+            (make_carbine(),              (cx + 120, cy + 60)),
+            (make_shotgun(),              (cx - 140, cy + 80)),
+            (make_sniper(),               (cx + 60,  cy - 120)),
+            (make_ammo(AmmoType.CARBINE, 30), (cx + 180, cy - 40)),
+            (make_ammo(AmmoType.SHOTGUN, 16), (cx - 60,  cy - 100)),
+            (make_ammo(AmmoType.SNIPER,  5),  (cx - 180, cy + 40)),
         ]
         for item, pos in items:
             WorldItem(item=item, pos=pos, groups=[self.world_items])
@@ -199,7 +205,7 @@ class Game:
                 weapon_slots[self.player.active_weapon_slot].item = item
                 if old:
                     WorldItem(item=old, pos=self._nearby_world_item.world_pos,
-                            groups=[self.world_items])
+                              groups=[self.world_items])
                 picked = True
         elif item.stackable:
             remainder = self._pickup_stackable(item)
@@ -215,7 +221,7 @@ class Game:
             self._nearby_world_item.kill()
             self._nearby_world_item = None
             self._sync_weapon()
-    
+
     def _pickup_stackable(self, item) -> int:
         remaining = item.stack_count
         for inv in [self.player.backpack, self.player.pouch]:
@@ -242,8 +248,8 @@ class Game:
         return remaining
 
     def _update(self, dt: float) -> None:
-        self.player.update(dt)
-        self.enemies.update(dt)
+        self.player.update(dt, self.level.walls)
+        self.enemies.update(dt, self.level.walls)
         self.bullets.update(dt)
         self.world_items.update(dt)
         self.weapon.update(dt, self.camera.get_offset())
@@ -252,6 +258,7 @@ class Game:
             self.weapon.try_shoot()
 
         self._check_bullet_hits()
+        self._check_bullet_wall_hits()
         self._check_contact_damage()
         self._update_nearby_item()
         self.camera.follow(self.player)
@@ -272,6 +279,9 @@ class Game:
                 enemy.take_damage(bullet.damage)
                 if bullet.stopping_effect > 0 and bullet.velocity.length() > 0:
                     enemy.apply_stopping_effect(bullet.velocity, bullet.stopping_effect)
+
+    def _check_bullet_wall_hits(self) -> None:
+        pygame.sprite.groupcollide(self.bullets, self.level.walls, True, False)
 
     def _check_contact_damage(self) -> None:
         s = self.settings
@@ -310,6 +320,8 @@ class Game:
             y += gs
 
     def _draw_sprites(self) -> None:
+        for sprite in self.level.walls:
+            self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         for sprite in self.world_items:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         for sprite in [*self.bullets.sprites(), *self.enemies.sprites(), self.player]:

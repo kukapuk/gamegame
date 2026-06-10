@@ -36,9 +36,31 @@ class Actor(pygame.sprite.Sprite):
             self.alive = False
             self.kill()
 
-    def update(self, dt: float) -> None:
-        self.pos += self.velocity * dt
-        self.rect.center = (round(self.pos.x), round(self.pos.y))
+    def update(self, dt: float, walls: pygame.sprite.Group = None) -> None:
+        if walls:
+            self._move_with_collisions(dt, walls)
+        else:
+            self.pos += self.velocity * dt
+            self.rect.center = (round(self.pos.x), round(self.pos.y))
+
+    def _move_with_collisions(self, dt: float, walls: pygame.sprite.Group) -> None:
+        self.pos.x += self.velocity.x * dt
+        self.rect.centerx = round(self.pos.x)
+        for wall in pygame.sprite.spritecollide(self, walls, False):
+            if self.velocity.x > 0:
+                self.rect.right = wall.rect.left
+            elif self.velocity.x < 0:
+                self.rect.left = wall.rect.right
+            self.pos.x = self.rect.centerx
+
+        self.pos.y += self.velocity.y * dt
+        self.rect.centery = round(self.pos.y)
+        for wall in pygame.sprite.spritecollide(self, walls, False):
+            if self.velocity.y > 0:
+                self.rect.bottom = wall.rect.top
+            elif self.velocity.y < 0:
+                self.rect.top = wall.rect.bottom
+            self.pos.y = self.rect.centery
 
     def set_pos(self, pos: tuple[float, float]) -> None:
         self.pos.update(pos)

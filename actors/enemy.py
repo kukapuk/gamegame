@@ -57,7 +57,7 @@ class Enemy(Actor):
         else:
             self.velocity.update(0, 0)
 
-    def update(self, dt: float) -> None:
+    def update(self, dt: float, walls: pygame.sprite.Group = None) -> None:
         self._contact_cooldown = max(0.0, self._contact_cooldown - dt)
 
         if self._stun_timer > 0:
@@ -68,4 +68,4 @@ class Enemy(Actor):
             self._knockback_vel.update(0, 0)
             self._chase()
 
-        super().update(dt)
+        super().update(dt, walls)
