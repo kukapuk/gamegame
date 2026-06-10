@@ -130,15 +130,28 @@ class Game:
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
-                    self.hud.handle_mouse_down(event.pos)
+                    grabbed = self.hud.handle_world_mouse_down(
+                        event.pos, self.world_items, self.camera.get_offset()
+                    )
+                    if not grabbed:
+                        self.hud.handle_mouse_down(event.pos)
 
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
-                    self.hud.handle_mouse_up(event.pos)
+                    result = self.hud.handle_mouse_up(event.pos)
+                    if result["kill_world_item"]:
+                        result["kill_world_item"].kill()
+                    if result["drop_item"]:
+                        drop_pos = (
+                            self.player.pos.x + self.player.facing.x * 48,
+                            self.player.pos.y + self.player.facing.y * 48,
+                        )
+                        WorldItem(item=result["drop_item"], pos=drop_pos, groups=[self.world_items])
                     self._sync_weapon()
 
             elif event.type == pygame.MOUSEMOTION:
                 self.hud.handle_mouse_motion(event.pos)
+                self.hud.update_world_hover(event.pos, self.world_items, self.camera.get_offset())
 
     def _try_drop(self) -> None:
         from entities.items.item import ItemType
@@ -227,6 +240,7 @@ class Game:
         self._draw_grid()
         self._draw_sprites()
         self._draw_enemy_hp_bars()
+        self.hud.draw_world_hover(self.screen, self.camera.get_offset())
         self._draw_pickup_hint()
         self.hud.draw(self.screen, i_hold_progress=self._i_held_time / self.settings.backpack_hold_time)
         if self.debug:

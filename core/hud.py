@@ -10,8 +10,9 @@ from entities.items.inventory import Slot, Inventory
 @dataclass
 class DragState:
     item: object
-    source_inv: Inventory
-    source_slot: Slot
+    source_inv: object        # Inventory | None
+    source_slot: object       # Slot | None
+    source_world_item: object = None   # WorldItem | None
     icon_size: int = 40
 
 
@@ -71,6 +72,7 @@ class HUD:
 
         self._panel_dragging: bool = False
         self._panel_drag_offset = pygame.Vector2(0, 0)
+        self._hovered_world_item = None
 
     def toggle_pouch(self) -> None:
         self.pouch_open = not self.pouch_open
@@ -81,9 +83,11 @@ class HUD:
     def close_backpack(self) -> None:
         self.backpack_open = False
         if self._drag:
-            self._drag.source_slot.item = self._drag.item
+            if self._drag.source_slot:
+                self._drag.source_slot.item = self._drag.item
             self._drag = None
         self._panel_dragging = False
+        self._hovered_world_item = None
 
     def is_open(self) -> bool:
         return self.backpack_open
@@ -110,22 +114,81 @@ class HUD:
                 slot.item = None
                 return
 
-    def handle_mouse_up(self, pos: tuple[int, int]) -> None:
+    def handle_world_mouse_down(self, pos: tuple[int, int], world_items, camera_offset: pygame.math.Vector2) -> bool:
+        if not self.backpack_open:
+            return False
+        for wi in world_items:
+            screen_rect = wi.rect.move(-camera_offset.x, -camera_offset.y)
+            if screen_rect.collidepoint(pos):
+                self._drag = DragState(
+                    item=wi.item,
+                    source_inv=None,
+                    source_slot=None,
+                    source_world_item=wi,
+                    icon_size=max(wi.rect.width, 20),
+                )
+                return True
+        return False
+
+    def update_world_hover(self, pos: tuple[int, int], world_items, camera_offset: pygame.math.Vector2) -> None:
+        if not self.backpack_open:
+            self._hovered_world_item = None
+            return
+        self._hovered_world_item = None
+        for wi in world_items:
+            screen_rect = wi.rect.move(-camera_offset.x, -camera_offset.y)
+            if screen_rect.collidepoint(pos):
+                self._hovered_world_item = wi
+                break
+
+    def handle_mouse_up(self, pos: tuple[int, int]) -> dict:
+        """
+        Возвращает dict с инструкциями для game.py:
+          kill_world_item  — WorldItem который нужно убить (предмет подобран)
+          drop_item        — Item который нужно выбросить в мир рядом с игроком
+        """
+        result = {"kill_world_item": None, "drop_item": None}
+
         if self._panel_dragging:
             self._panel_dragging = False
-            return
+            return result
         if not self._drag:
-            return
+            return result
+
         for slot, rect in self._all_interactive_rects():
             if rect.collidepoint(pos) and slot is not self._drag.source_slot:
-                if slot.accepts(self._drag.item) and self._drag.source_slot.accepts(slot.item if slot.item else self._drag.item):
-                    old_item = slot.item
-                    slot.item = self._drag.item
-                    self._drag.source_slot.item = old_item
-                    self._drag = None
-                    return
-        self._drag.source_slot.item = self._drag.item
+                if not slot.accepts(self._drag.item):
+                    continue
+                source_slot  = self._drag.source_slot
+                source_world = self._drag.source_world_item
+                old_item     = slot.item
+
+                if source_slot and old_item and not source_slot.accepts(old_item):
+                    continue
+
+                slot.item = self._drag.item
+                self._drag = None
+
+                if source_slot:
+                    source_slot.item = old_item
+                elif source_world:
+                    result["kill_world_item"] = source_world
+
+                return result
+
+        # Drop мимо всех слотов
+        source_slot  = self._drag.source_slot
+        source_world = self._drag.source_world_item
+
+        if source_slot:
+            # Из инвентаря в никуда — выбрасываем в мир
+            result["drop_item"] = self._drag.item
+        elif source_world:
+            # Из мира в никуда — оставляем на полу (ничего не делаем)
+            pass
+
         self._drag = None
+        return result
 
     def handle_mouse_motion(self, pos: tuple[int, int]) -> None:
         if self._panel_dragging:
@@ -158,6 +221,17 @@ class HUD:
         if i_hold_progress > 0:
             self._draw_i_progress(screen, i_hold_progress)
         self._draw_tooltip(screen, pygame.mouse.get_pos())
+
+    def draw_world_hover(self, screen: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
+        if not self._hovered_world_item or not self.backpack_open:
+            return
+        wi = self._hovered_world_item
+        r  = wi.rect.move(-camera_offset.x, -camera_offset.y)
+        pad = 6
+        hover = pygame.Surface((r.width + pad * 2, r.height + pad * 2), pygame.SRCALPHA)
+        hover.fill((180, 200, 255, 60))
+        pygame.draw.rect(hover, (140, 170, 255, 160), hover.get_rect(), 1)
+        screen.blit(hover, (r.x - pad, r.y - pad))
 
     def _backpack_title_rect(self) -> pygame.Rect:
         pw, _ = self._backpack_panel_size
