@@ -4,6 +4,7 @@ from items.stats import Stats
 from items.inventory import Inventory
 from items.item import ItemType
 from core.settings import Settings
+from items.armor import Armor
 
 
 class Player(Actor):
@@ -36,6 +37,7 @@ class Player(Actor):
         self.pouch = Inventory(
             capacity=4,
             typed_slots=[ItemType.WEAPON, ItemType.WEAPON, ItemType.ARMOR],
+            owner=self,
         )
         self.backpack = Inventory(capacity=16)
 
@@ -48,21 +50,20 @@ class Player(Actor):
         slot = weapon_slots[self.active_weapon_slot]
         return slot.item if not slot.empty else None
 
+    def get_armor_class(self) -> int:
+        armor_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.ARMOR]
+        if armor_slots and not armor_slots[0].empty:
+            item = armor_slots[0].item
+            if isinstance(item, Armor):
+                return item.tier
+        return 0
+
     def switch_weapon(self, slot_index: int) -> bool:
         weapon_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.WEAPON]
         if slot_index >= len(weapon_slots):
             return False
         self.active_weapon_slot = slot_index
         return True
-    
-    def get_armor_class(self) -> int:
-        from items.armor import ArmorItem
-        armor_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.ARMOR]
-        if armor_slots and not armor_slots[0].empty:
-            item = armor_slots[0].item
-            if isinstance(item, ArmorItem):
-                return item.armor_class
-        return 0
 
     def try_dash(self) -> None:
         if self._is_dashing:

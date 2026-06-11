@@ -109,7 +109,7 @@ class HUD:
                     source_slot=slot,
                     icon_size=rect.width - 4,
                 )
-                slot.item = None
+                slot.take()
                 return
 
     def handle_world_mouse_down(self, pos: tuple, world_items, camera_offset) -> bool:
@@ -185,11 +185,14 @@ class HUD:
                 if source_slot and old_item and not source_slot.accepts(old_item):
                     continue
 
-                slot.item  = self._drag.item
+                old_item = slot.take()
+                slot.put(self._drag.item)
                 self._drag = None
 
                 if source_slot:
-                    source_slot.item = old_item
+                    source_slot.take()
+                    if old_item:
+                        source_slot.put(old_item)
                 elif source_world:
                     result["kill_world_item"] = source_world
 

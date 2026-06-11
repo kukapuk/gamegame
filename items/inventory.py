@@ -1,14 +1,21 @@
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, Callable
 from items.item import Item, ItemType
 
 
 class Slot:
     """Одна ячейка инвентаря. Может быть пустой или содержать Item."""
 
-    def __init__(self, allowed_type: Optional[ItemType] = None) -> None:
+    def __init__(
+        self,
+        allowed_type: Optional[ItemType] = None,
+        on_put: Optional[Callable] = None,
+        on_take: Optional[Callable] = None,
+    ) -> None:
         self.item: Optional[Item] = None
         self.allowed_type = allowed_type
+        self._on_put  = on_put
+        self._on_take = on_take
 
     @property
     def empty(self) -> bool:
@@ -25,43 +32,56 @@ class Slot:
         if not self.accepts(item):
             return False
         self.item = item
+        if self._on_put:
+            self._on_put(item)
         return True
 
     def take(self) -> Optional[Item]:
         item = self.item
         self.item = None
+        if item and self._on_take:
+            self._on_take(item)
         return item
 
 
 class Inventory:
     """
     Универсальный контейнер предметов.
-    Поддерживает обычные слоты и фиксированные слоты с типом (оружие, броня).
+    owner — актор, которому принадлежит инвентарь (нужен для equip/unequip эффектов).
     """
 
-    def __init__(self, capacity: int, typed_slots: list[ItemType] = None) -> None:
+    def __init__(
+        self,
+        capacity: int,
+        typed_slots: list[ItemType] = None,
+        owner=None,
+    ) -> None:
+        self.owner = owner
         self.slots: list[Slot] = [Slot() for _ in range(capacity)]
         self.typed_slots: list[Slot] = []
         if typed_slots:
-            self.typed_slots = [Slot(allowed_type=t) for t in typed_slots]
+            for t in typed_slots:
+                self.typed_slots.append(Slot(
+                    allowed_type=t,
+                    on_put =self._on_equip,
+                    on_take=self._on_unequip,
+                ))
+
+    def _on_equip(self, item: Item) -> None:
+        if self.owner and hasattr(item, "equip"):
+            item.equip(self.owner)
+
+    def _on_unequip(self, item: Item) -> None:
+        if self.owner and hasattr(item, "unequip"):
+            item.unequip(self.owner)
 
     def all_slots(self) -> list[Slot]:
         return self.typed_slots + self.slots
 
     def add(self, item: Item) -> bool:
-        if item.stackable:
-            for slot in self.all_slots():
-                if (slot.item and type(slot.item) == type(item)
-                        and hasattr(slot.item, 'ammo_type')
-                        and slot.item.ammo_type == item.ammo_type
-                        and slot.item.stack_count < slot.item.max_stack):
-                    space = slot.item.max_stack - slot.item.stack_count
-                    slot.item.stack_count += min(space, item.stack_count)
-                    return True
         for slot in self.all_slots():
             if slot.empty and slot.accepts(item):
-                slot.item = item
-                return True
+                return slot.put(item)
         return False
 
     def remove(self, item: Item) -> bool:
@@ -86,7 +106,12 @@ class Inventory:
             return False
         if b.item and not a.accepts(b.item):
             return False
-        a.item, b.item = b.item, a.item
+        item_a = a.take()
+        item_b = b.take()
+        if item_a:
+            b.put(item_a)
+        if item_b:
+            a.put(item_b)
         return True
 
     def transfer(self, item: Item, target: Inventory) -> bool:
