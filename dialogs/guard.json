@@ -1,0 +1,46 @@
+{
+  "npc_name": "Guard",
+  "nodes": {
+    "start": {
+      "text": "Hey! Stop right there. Who are you?",
+      "choices": [
+        {"text": "Just a traveler passing through.", "next": "response_traveler"},
+        {"text": "None of your business.", "next": "response_rude"},
+        {"text": "I need information.", "next": "response_info"}
+      ]
+    },
+    "response_traveler": {
+      "text": "Hmm. These are dangerous times for travelers. Watch yourself out there.",
+      "choices": [
+        {"text": "Thanks for the warning.", "next": "end_friendly"}
+      ]
+    },
+    "response_rude": {
+      "text": "Watch your mouth. Move along before I change my mind.",
+      "choices": [
+        {"text": "Fine, fine.", "next": "end_hostile"}
+      ]
+    },
+    "response_info": {
+      "text": "Information? Depends what you're looking for. I've seen some strange things lately.",
+      "choices": [
+        {"text": "What kind of strange things?", "next": "info_details"},
+        {"text": "Never mind.", "next": "end_friendly"}
+      ]
+    },
+    "info_details": {
+      "text": "Movement at night. Shadows that shouldn't be there. Stay away from the east wing.",
+      "choices": [
+        {"text": "Understood. I'll be careful.", "next": "end_friendly"}
+      ]
+    },
+    "end_friendly": {
+      "text": "Stay safe out there.",
+      "choices": []
+    },
+    "end_hostile": {
+      "text": "...",
+      "choices": []
+    }
+  }
+}

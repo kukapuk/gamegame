@@ -16,6 +16,7 @@ from core.audio import AudioManager
 from core.pathfinder import Pathfinder
 from core.save_manager import SaveManager
 from actors.npc import NPC
+from core.dialog_manager import DialogManager
 
 
 class Game:
@@ -78,6 +79,8 @@ class Game:
 
         self._nearby_npc = None
         self._font_interact = pygame.font.SysFont("monospace", 14)
+
+        self.dialog = DialogManager(settings)
 
     def _sync_weapon(self) -> None:
         item = self.player.get_active_weapon()
@@ -158,7 +161,8 @@ class Game:
             WorldItem(item=item, pos=pos, groups=[self.world_items])
     
     def _spawn_npcs(self) -> None:
-        NPC(pos=(180, 580), name="Guard", groups=[self.all_sprites, self.npcs])
+        NPC(pos=(180, 580), name="Guard", dialog_file="guard.json",
+            groups=[self.all_sprites, self.npcs])
 
     def run(self) -> None:
         while self.running:
@@ -170,6 +174,8 @@ class Game:
             self._draw()
 
     def _handle_i_hold(self, dt: float) -> None:
+        if self.dialog.active:
+            return
         keys = pygame.key.get_pressed()
         if keys[pygame.K_i]:
             self._i_held_time += dt
@@ -196,6 +202,9 @@ class Game:
                 self.running = False
 
             elif event.type == pygame.KEYDOWN:
+                if self.dialog.active:
+                    self.dialog.handle_key(event.key)
+                    return
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
                 elif event.key == pygame.K_1:
@@ -213,8 +222,8 @@ class Game:
                 elif event.key == pygame.K_r:
                     self.weapon.try_reload()
                 elif event.key == pygame.K_e:
-                    if self._nearby_npc:
-                        print(f"[NPC] talked to {self._nearby_npc.name}")
+                    if self._nearby_npc and self._nearby_npc.dialog_file:
+                        self.dialog.start(self._nearby_npc.dialog_file)
                     else:
                         self._try_pickup()
                 elif event.key == pygame.K_g:
@@ -331,6 +340,10 @@ class Game:
         return remaining
 
     def _update(self, dt: float) -> None:
+        if self.dialog.active:
+            self.camera.follow(self.player)
+            return
+
         self.player.update(dt, self.level.walls)
         self.enemies.update(dt, self.level.walls)
         self.bullets.update(dt)
@@ -452,8 +465,8 @@ class Game:
         if self.player_dead:
             self._draw_death_screen()
         self._draw_save_hint(self.screen)
-        self._draw_npcs()
         self._draw_npc_hint()
+        self.dialog.draw(self.screen)
         pygame.display.flip()
 
     def _draw_grid(self) -> None:
@@ -495,6 +508,9 @@ class Game:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         for sprite in self.world_items:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
+        for npc in self.npcs:                                          # ← сюда
+            self.screen.blit(npc.image, self.camera.apply(npc.rect))
+            npc.draw_name(self.screen, self.camera.get_offset())
         for sprite in [*self.enemy_bullets.sprites(), *self.bullets.sprites(), *self.enemies.sprites(), self.player]:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         if self.weapon.has_weapon:

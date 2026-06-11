@@ -16,6 +16,7 @@ class NPC(Actor):
         self,
         pos: tuple[float, float],
         name: str,
+        dialog_file: str = "",
         groups: list = (),
     ) -> None:
         super().__init__(
@@ -25,6 +26,7 @@ class NPC(Actor):
             groups=groups,
         )
         self.name          = name
+        self.dialog_file   = dialog_file
         self.velocity.update(0, 0)
         self._font         = pygame.font.SysFont("monospace", 12)
         self._name_surf    = self._font.render(name, True, self.NAME_COLOR)
