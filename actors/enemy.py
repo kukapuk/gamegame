@@ -97,6 +97,11 @@ class Enemy(Actor):
         self.vision_range: float = self.VISION_RANGE
         self.vision_angle: float = self.VISION_ANGLE
 
+        self._patrol_points: list[pygame.math.Vector2] = []
+        self._patrol_index: int  = 0
+        self._patrol_arrived: bool = False
+        self.tile_size: int = 64
+
     def apply_stopping_effect(self, bullet_direction: pygame.math.Vector2, stopping_effect: float) -> None:
         self._knockback_vel = bullet_direction.normalize() * stopping_effect * 420.0
         self._stun_timer    = stopping_effect * 0.45
@@ -107,6 +112,10 @@ class Enemy(Actor):
         if self.rect.colliderect(target.rect):
             target.take_damage(damage)
             self._contact_cooldown = cooldown
+    
+    def set_patrol(self, points: list[tuple[float, float]]) -> None:
+        self._patrol_points = [pygame.math.Vector2(p) for p in points]
+        self._patrol_index  = 0
 
     def hear_sound(self, world_pos: pygame.math.Vector2, radius: float) -> None:
         if self.state == EnemyState.CHASE:
@@ -192,7 +201,7 @@ class Enemy(Actor):
 
     def _ai_grunt(self, dt: float) -> None:
         if self.state == EnemyState.IDLE:
-            self.velocity.update(0, 0)
+            self._do_patrol(dt)
         elif self.state == EnemyState.CHASE:
             self._follow_path_to(self.target.pos, dt)
         elif self.state == EnemyState.SEARCH:
@@ -201,9 +210,24 @@ class Enemy(Actor):
             self.velocity.update(0, 0)
             self._do_alert_rotate(dt)
 
+    def _do_patrol(self, dt: float) -> None:
+        if not self._patrol_points:
+            self.velocity.update(0, 0)
+            return
+
+        target = self._patrol_points[self._patrol_index]
+        dist   = (self.pos - target).length()
+
+        if dist < self.tile_size // 2:
+            self._patrol_index = (self._patrol_index + 1) % len(self._patrol_points)
+            self._path = []
+            self._path_timer = 0.0
+        else:
+            self._follow_path_to(target, dt)
+
     def _ai_shooter(self, dt: float) -> None:
         if self.state == EnemyState.IDLE:
-            self.velocity.update(0, 0)
+            self._do_patrol(dt)
             return
         elif self.state == EnemyState.SEARCH:
             self._do_search(dt)

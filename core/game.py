@@ -78,8 +78,7 @@ class Game:
 
     def _spawn_enemies(self) -> None:
         grunts = [
-            ((800, 400), 0),
-            ((1000, 200), 1),
+            ((800, 400), 1),
         ]
         shooters = [
             ((500, 800), 2),
@@ -92,6 +91,7 @@ class Game:
             )
             e.pathfinder = self.pathfinder
             e.enemies_group = self.enemies
+            e.set_patrol([(800, 300), (800, 600), (1100, 600), (1100, 300)])
 
         for pos, armor in shooters:
             e = make_shooter(
