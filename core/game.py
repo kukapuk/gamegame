@@ -14,6 +14,7 @@ from combat.calculator import resolve_hit
 from actors.enemy import make_grunt, make_shooter
 from core.audio import AudioManager
 from core.pathfinder import Pathfinder
+from core.save_manager import SaveManager
 
 
 class Game:
@@ -69,6 +70,8 @@ class Game:
         self.player_dead: bool = False
         self._death_font_big = pygame.font.SysFont("monospace", 72, bold=True)
         self._death_font_sm  = pygame.font.SysFont("monospace", 24)
+
+        self.save_manager = SaveManager()
 
     def _sync_weapon(self) -> None:
         item = self.player.get_active_weapon()
@@ -204,6 +207,10 @@ class Game:
                     self._try_pickup()
                 elif event.key == pygame.K_g:
                     self._try_drop()
+                elif event.key == pygame.K_F5:
+                    self.save_manager.save(self)
+                elif event.key == pygame.K_F9:
+                    self.save_manager.load(self)
                 else:
                     if not self.hud.is_open():
                         typed_count = len(self.player.pouch.typed_slots)
@@ -422,6 +429,7 @@ class Game:
             self._draw_debug_info()
         if self.player_dead:
             self._draw_death_screen()
+        self._draw_save_hint(self.screen)
         pygame.display.flip()
 
     def _draw_grid(self) -> None:
@@ -515,3 +523,10 @@ class Game:
             enemy.draw_debug(self.screen, self.camera.get_offset())
         self.audio.draw_debug(self.screen, self.camera.get_offset())
         p.draw_debug(self.screen, self.camera.get_offset())
+    
+    def _draw_save_hint(self, screen: pygame.Surface) -> None:
+        font = pygame.font.SysFont("monospace", 12)
+        has  = self.save_manager.has_save()
+        line = "F5 save  |  F9 load" + (" ✓" if has else "")
+        surf = font.render(line, True, (100, 100, 120))
+        screen.blit(surf, (self.settings.screen_width - surf.get_width() - 12, 8))
