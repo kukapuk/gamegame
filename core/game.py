@@ -12,6 +12,7 @@ from items.weapon_item import WeaponItem, make_carbine, make_shotgun, make_snipe
 from items.ammo import make_ammo, AmmoType
 from combat.calculator import resolve_hit
 from actors.enemy import make_grunt, make_shooter
+from core.audio import AudioManager
 
 
 class Game:
@@ -51,6 +52,7 @@ class Game:
 
         self.camera = Camera(settings)
         self.hud    = HUD(settings, self.player)
+        self.audio = AudioManager(settings)
         self.debug  = True
 
         self._i_held_time: float     = 0.0
@@ -287,8 +289,16 @@ class Game:
         self.world_items.update(dt)
         self.weapon.update(dt, self.camera.get_offset())
 
+        self.audio.update(dt)
+        self._check_sound_events()
+
         if pygame.mouse.get_pressed()[0] and not self.hud.is_open():
-            self.weapon.try_shoot()
+            if self.weapon.try_shoot():
+                self.audio.play_at(
+                    "gunshot",
+                    self.player.pos,
+                    self.settings.gunshot_sound_radius,
+                )
 
         self._check_bullet_hits()
         self._check_bullet_wall_hits()
@@ -296,6 +306,11 @@ class Game:
         self._check_enemy_bullet_hits()
         self._update_nearby_item()
         self.camera.follow(self.player)
+    
+    def _check_sound_events(self) -> None:
+        for ev in self.audio.get_sound_events():
+            for enemy in self.enemies:
+                enemy.hear_sound(ev["pos"], ev["radius"])
 
     def _update_nearby_item(self) -> None:
         self._nearby_world_item = None
@@ -426,4 +441,5 @@ class Game:
             self.screen.blit(surf, (10, 10 + i * 20))
         for enemy in self.enemies:
             enemy.draw_debug(self.screen, self.camera.get_offset())
+        self.audio.draw_debug(self.screen, self.camera.get_offset())
         p.draw_debug(self.screen, self.camera.get_offset())

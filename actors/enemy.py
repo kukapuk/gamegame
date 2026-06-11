@@ -83,6 +83,12 @@ class Enemy(Actor):
             target.take_damage(damage)
             self._contact_cooldown = cooldown
 
+    def hear_sound(self, world_pos: pygame.math.Vector2, radius: float) -> None:
+        if self.state == EnemyState.CHASE:
+            return
+        if (self.pos - world_pos).length() <= radius:
+            self.state = EnemyState.CHASE
+
     def can_see_target(self) -> bool:
         delta = self.target.pos - self.pos
         dist  = delta.length()

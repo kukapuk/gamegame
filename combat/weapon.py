@@ -77,19 +77,18 @@ class Weapon(pygame.sprite.Sprite):
         self.reloading     = True
         self._reload_timer = self._weapon_item.stats.reload_time
 
-    def try_shoot(self) -> None:
+    def try_shoot(self) -> bool:
         if not self._weapon_item or self.reloading:
-            return
+            return False
         if self._fire_cooldown > 0:
-            return
+            return False
         if self.mag_current <= 0:
             self.try_reload()
-            return
+            return False
 
         s = self._weapon_item.stats
         self._fire_cooldown = s.fire_rate
         self.mag_current -= 1
-
         self._weapon_item.mag_current = self.mag_current
 
         w      = self._base_image.get_width()
@@ -112,6 +111,8 @@ class Weapon(pygame.sprite.Sprite):
 
         if self.mag_current == 0:
             self.try_reload()
+
+        return True
 
     def update(self, dt: float, camera_offset: pygame.math.Vector2) -> None:
         self._fire_cooldown = max(0.0, self._fire_cooldown - dt)
