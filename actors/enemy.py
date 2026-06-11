@@ -80,6 +80,10 @@ class Enemy(Actor):
         self._path_interval: float = 0.4
         self.pathfinder            = None
 
+        self.enemies_group = None
+        self._separation_radius: float = 40.0
+        self._separation_force: float  = 180.0
+
         self.can_shoot: bool        = False
         self._shoot_cooldown: float = 0.0
         self._shoot_rate: float     = 0.0
@@ -135,6 +139,20 @@ class Enemy(Actor):
             if _segment_intersects_rect(start, end, wall.rect):
                 return True
         return False
+    
+    def _apply_separation(self) -> None:
+        if not self.enemies_group:
+            return
+        push = pygame.math.Vector2(0, 0)
+        for other in self.enemies_group:
+            if other is self:
+                continue
+            delta = self.pos - other.pos
+            dist  = delta.length()
+            if 0 < dist < self._separation_radius:
+                push += delta.normalize() * (self._separation_radius - dist)
+        if push.length() > 0:
+            self.velocity += push.normalize() * self._separation_force
 
     def _update_facing(self) -> None:
         if self.velocity.length() > 0.5:
@@ -350,6 +368,7 @@ class Enemy(Actor):
             self._update_state(dt)
             self._update_facing()
             self._ai_update(dt)
+            self._apply_separation()
         super().update(dt, walls)
 
 

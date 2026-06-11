@@ -87,6 +87,7 @@ class Game:
                 groups=[self.all_sprites, self.enemies],
             )
             e.pathfinder = self.pathfinder
+            e.enemies_group = self.enemies
 
         for pos, armor in shooters:
             e = make_shooter(
@@ -96,6 +97,7 @@ class Game:
                 all_sprites=self.all_sprites,
             )
             e.pathfinder = self.pathfinder
+            e.enemies_group = self.enemies
     
     def _check_enemy_bullet_hits(self) -> None:
         for bullet in self.enemy_bullets:
