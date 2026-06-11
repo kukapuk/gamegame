@@ -294,11 +294,10 @@ class Game:
 
         if pygame.mouse.get_pressed()[0] and not self.hud.is_open():
             if self.weapon.try_shoot():
-                self.audio.play_at(
-                    "gunshot",
-                    self.player.pos,
-                    self.settings.gunshot_sound_radius,
-                )
+                radius = (self.weapon._weapon_item.stats.sound_radius
+                        if self.weapon.has_weapon
+                        else self.settings.gunshot_sound_radius)
+                self.audio.play_at("gunshot", self.player.pos, radius)
 
         self._check_bullet_hits()
         self._check_bullet_wall_hits()
@@ -388,8 +387,6 @@ class Game:
         for sprite in self.level.walls:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         for sprite in self.world_items:
-            self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
-        for sprite in [*self.bullets.sprites(), *self.enemies.sprites(), self.player]:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         for sprite in [*self.enemy_bullets.sprites(), *self.bullets.sprites(), *self.enemies.sprites(), self.player]:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))

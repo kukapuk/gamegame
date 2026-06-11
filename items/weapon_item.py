@@ -22,6 +22,7 @@ class WeaponStats:
     ammo_type: AmmoType
     mag_size: int
     reload_time: float
+    sound_radius: float = 400.0
 
 
 class WeaponItem(Item):
@@ -41,9 +42,7 @@ class WeaponItem(Item):
         self.mag_current: int = -1
 
     def get_tooltip(self) -> str:
-        ap = int(self.stats.armor_penetration * 100)
-        se = int(self.stats.stopping_effect   * 100)
-        return f"{self.name}  DMG:{self.stats.damage}  AP:{ap}%  SE:{se}%"
+        return f"{self.name}  DMG:{self.stats.damage}  AP:{self.stats.armor_pen}  SE:{int(self.stats.stopping_effect * 100)}%"
 
 
 def make_carbine() -> WeaponItem:
