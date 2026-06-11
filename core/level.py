@@ -11,6 +11,7 @@ class Level:
     """
 
     def __init__(self, path: str, tile_size: int) -> None:
+        self.path         = path
         self.tile_size    = tile_size
         self.walls        = pygame.sprite.Group()
         self.all_sprites  = pygame.sprite.Group()
@@ -39,16 +40,15 @@ class Level:
                 if layer.name == "objects":
                     self._load_objects(layer)
 
-    def _load_floor(self, tiled, layer):
+    def _load_floor(self, tiled, layer: pytmx.TiledTileLayer) -> None:
         ts = self.tile_size
         for x, y, gid in layer:
             if gid == 0:
                 continue
             surf = tiled.get_tile_image_by_gid(gid)
             if surf:
-                scaled = pygame.transform.scale(surf, (ts, ts))
-                rect   = pygame.Rect(x * ts, y * ts, ts, ts)
-                self._floor_surfaces.append((scaled, rect))
+                rect = pygame.Rect(x * ts, y * ts, ts, ts)
+                self._floor_surfaces.append((surf, rect))
 
     def _load_walls(self, tiled, layer: pytmx.TiledTileLayer) -> None:
         ts = self.tile_size

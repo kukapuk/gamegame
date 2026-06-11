@@ -2,18 +2,14 @@ import pygame
 from core.settings import Settings
 from core.camera import Camera
 from core.hud import HUD
-from core.level import Level
 from core.audio import AudioManager
-from core.pathfinder import Pathfinder
 from core.save_manager import SaveManager
 from core.dialog_manager import DialogManager
 from core.loot_manager import LootManager
 from core.combat_manager import CombatManager
+from core.world_manager import WorldManager
 from actors.player import Player
-from actors.enemy import make_grunt, make_shooter
-from actors.npc import NPC
 from combat.weapon import Weapon
-from items.world_item import WorldItem
 from items.consumable import make_medkit
 from items.weapon_item import make_carbine, make_shotgun, make_sniper
 from items.ammo import make_ammo, AmmoType
@@ -36,28 +32,20 @@ class Game:
         self.enemy_bullets = pygame.sprite.Group()
         self.npcs          = pygame.sprite.Group()
 
-        self.level = Level("levels/level_1.tmx", settings.grid_size)
-
-        spawn       = self.level.player_spawn
-        self.player = Player(spawn, settings, groups=[self.all_sprites])
-
-        self.pathfinder = Pathfinder(settings.grid_size)
-        self.pathfinder.build_from_walls(self.level.walls, self.level.cols, self.level.rows)
-
-        self.weapon = Weapon(
-            owner=self.player,
-            settings=settings,
-            bullet_group=self.bullets,
-            all_sprites=self.all_sprites,
-        )
-
         self.loot   = LootManager(self.world_items)
         self.combat = CombatManager(settings)
+        self.world  = WorldManager(
+            settings=settings,
+            all_sprites=self.all_sprites,
+            enemies=self.enemies,
+            enemy_bullets=self.enemy_bullets,
+            npcs=self.npcs,
+            loot=self.loot,
+        )
 
-        self._spawn_from_level()
-        self._give_test_items()
-        self._spawn_world_items()
-        self._sync_weapon()
+        self.player = None
+        self.weapon = None
+        self._load_level("levels/level_1.tmx")
 
         self.camera       = Camera(settings)
         self.hud          = HUD(settings, self.player)
@@ -70,15 +58,49 @@ class Game:
 
         self._i_held_time: float = 0.0
         self._i_triggered: bool  = False
-        self._nearby_npc         = None
 
         self._font_interact  = pygame.font.SysFont("monospace", 14)
         self._death_font_big = pygame.font.SysFont("monospace", 72, bold=True)
         self._death_font_sm  = pygame.font.SysFont("monospace", 24)
 
-    # ------------------------------------------------------------------
-    # Init helpers
-    # ------------------------------------------------------------------
+    # Level loading
+
+    def _load_level(self, path: str, keep_player: bool = False) -> None:
+        self.all_sprites.empty()
+        self.bullets.empty()
+        self.enemies.empty()
+        self.world_items.empty()
+        self.enemy_bullets.empty()
+        self.npcs.empty()
+
+        if not keep_player or self.player is None:
+            spawn       = self._get_spawn(path)
+            self.player = Player(spawn, self.settings, groups=[self.all_sprites])
+        else:
+            self.all_sprites.add(self.player)
+
+        self.weapon = Weapon(
+            owner=self.player,
+            settings=self.settings,
+            bullet_group=self.bullets,
+            all_sprites=self.all_sprites,
+        )
+
+        self.world.load_level(path, self.player, self.bullets)
+
+        self._give_test_items()
+        self._spawn_world_items()
+        self._sync_weapon()
+
+        if hasattr(self, "hud") and self.hud:
+            self.hud = HUD(self.settings, self.player)
+        if hasattr(self, "camera") and self.camera:
+            self.camera = Camera(self.settings)
+
+    def _get_spawn(self, path: str) -> tuple:
+        from core.level import Level
+        tmp = Level(path, self.settings.grid_size)
+        return tmp.player_spawn
 
     def _sync_weapon(self) -> None:
         item = self.player.get_active_weapon()
@@ -86,51 +108,7 @@ class Game:
             return
         self.weapon.equip(item if item else None)
 
-    def _spawn_from_level(self) -> None:
-        for obj in self.level.objects:
-            t     = obj["type"]
-            pos   = (obj["x"], obj["y"])
-            props = obj["props"]
-
-            if t == "enemy_grunt":
-                e = make_grunt(
-                    pos=pos, target=self.player,
-                    armor_class=props.get("armor_class", 0),
-                    groups=[self.all_sprites, self.enemies],
-                )
-                e.pathfinder    = self.pathfinder
-                e.enemies_group = self.enemies
-                patrol = self._parse_patrol(props)
-                if patrol:
-                    e.set_patrol(patrol)
-
-            elif t == "enemy_shooter":
-                e = make_shooter(
-                    pos=pos, target=self.player,
-                    armor_class=props.get("armor_class", 0),
-                    groups=[self.all_sprites, self.enemies],
-                    bullet_group=self.enemy_bullets,
-                    all_sprites=self.all_sprites,
-                )
-                e.pathfinder    = self.pathfinder
-                e.enemies_group = self.enemies
-
-            elif t == "npc":
-                NPC(
-                    pos=pos,
-                    name=props.get("npc_name", "NPC"),
-                    dialog_file=props.get("dialog_file", ""),
-                    groups=[self.all_sprites, self.npcs],
-                )
-
-    def _parse_patrol(self, props: dict) -> list:
-        points = []
-        i = 1
-        while f"patrol_x{i}" in props and f"patrol_y{i}" in props:
-            points.append((props[f"patrol_x{i}"], props[f"patrol_y{i}"]))
-            i += 1
-        return points
-
+    # TODO: убрать когда предметы будут задаваться в tmx
     def _give_test_items(self) -> None:
         test_items = [
             make_ammo(AmmoType.CARBINE, 90),
@@ -144,6 +122,7 @@ class Game:
             if slot:
                 slot.put(item)
 
+    # TODO: убрать когда предметы будут задаваться в tmx
     def _spawn_world_items(self) -> None:
         from items.armor import make_light_armor, make_medium_armor, make_heavy_armor
         cx, cy = self.settings.screen_width // 2, self.settings.screen_height // 2
@@ -159,9 +138,7 @@ class Game:
             (make_heavy_armor(),              (cx,       cy + 160)),
         ])
 
-    # ------------------------------------------------------------------
     # Main loop
-    # ------------------------------------------------------------------
 
     def run(self) -> None:
         while self.running:
@@ -172,9 +149,7 @@ class Game:
                 self._update(dt)
             self._draw()
 
-    # ------------------------------------------------------------------
     # Events
-    # ------------------------------------------------------------------
 
     def _handle_i_hold(self, dt: float) -> None:
         if self.dialog.active:
@@ -227,8 +202,12 @@ class Game:
                 elif event.key == pygame.K_r:
                     self.weapon.try_reload()
                 elif event.key == pygame.K_e:
-                    if self._nearby_npc and self._nearby_npc.dialog_file:
-                        self.dialog.start(self._nearby_npc.dialog_file)
+                    nearby_npc = self.world.get_nearby_npc()
+                    pending    = self.world.get_pending_level()
+                    if nearby_npc and nearby_npc.dialog_file:
+                        self.dialog.start(nearby_npc.dialog_file)
+                    elif pending:
+                        self._transition_level(pending)
                     else:
                         self.loot.try_pickup(self.player, self._sync_weapon)
                 elif event.key == pygame.K_g:
@@ -269,23 +248,22 @@ class Game:
                 self.hud.handle_mouse_motion(event.pos)
                 self.hud.update_world_hover(event.pos, self.world_items, self.camera.get_offset())
 
-    # ------------------------------------------------------------------
     # Update
-    # ------------------------------------------------------------------
 
     def _update(self, dt: float) -> None:
         if self.dialog.active:
             self.camera.follow(self.player)
             return
 
-        self.player.update(dt, self.level.walls)
-        self.enemies.update(dt, self.level.walls)
+        self.player.update(dt, self.world.level.walls)
+        self.enemies.update(dt, self.world.level.walls)
         self.bullets.update(dt)
         self.enemy_bullets.update(dt)
         self.world_items.update(dt)
         self.weapon.update(dt, self.camera.get_offset())
         self.audio.update(dt)
         self.loot.update(self.player)
+        self.world.update(self.player)
 
         self._check_sound_events()
 
@@ -299,9 +277,8 @@ class Game:
         self.combat.update(
             self.player, self.enemies,
             self.bullets, self.enemy_bullets,
-            self.level.walls,
+            self.world.level.walls,
         )
-        self._update_nearby_npc()
         self.camera.follow(self.player)
 
         if not self.player.alive:
@@ -312,55 +289,27 @@ class Game:
             for enemy in self.enemies:
                 enemy.hear_sound(ev["pos"], ev["radius"])
 
-    def _update_nearby_npc(self) -> None:
-        self._nearby_npc = None
-        for npc in self.npcs:
-            if npc.is_in_interact_range(self.player.pos):
-                self._nearby_npc = npc
-                break
+    def _transition_level(self, target: str) -> None:
+        self.world.consume_pending_level()
+        self._load_level(f"levels/{target}", keep_player=True)
 
-    # ------------------------------------------------------------------
     # Restart
-    # ------------------------------------------------------------------
 
     def _restart(self) -> None:
         self.player_dead = False
-        self.all_sprites.empty()
-        self.bullets.empty()
-        self.enemies.empty()
-        self.world_items.empty()
-        self.enemy_bullets.empty()
-        self.npcs.empty()
+        self.player      = None
+        self._load_level("levels/level_1.tmx", keep_player=False)
 
-        spawn       = self.level.player_spawn
-        self.player = Player(spawn, self.settings, groups=[self.all_sprites])
-        self.weapon = Weapon(
-            owner=self.player,
-            settings=self.settings,
-            bullet_group=self.bullets,
-            all_sprites=self.all_sprites,
-        )
-        self.hud    = HUD(self.settings, self.player)
-        self.camera = Camera(self.settings)
-        self.loot   = LootManager(self.world_items)
-        self.combat = CombatManager(self.settings)
-
-        self._spawn_from_level()
-        self._give_test_items()
-        self._spawn_world_items()
-        self._sync_weapon()
-
-    # ------------------------------------------------------------------
     # Draw
-    # ------------------------------------------------------------------
 
     def _draw(self) -> None:
         self.screen.fill(self.settings.bg_color)
-        self.level.draw_floor(self.screen, self.camera.get_offset())
+        self.world.level.draw_floor(self.screen, self.camera.get_offset())
         self._draw_sprites()
         self._draw_enemy_hp_bars()
         self.hud.draw_world_hover(self.screen, self.camera.get_offset())
         self.loot.draw_hint(self.screen, self.camera.get_offset())
+        self.world.draw(self.screen, self.camera.get_offset())
         self._draw_npc_hint()
         self.hud.draw(self.screen,
                       i_hold_progress=self._i_held_time / self.settings.backpack_hold_time,
@@ -374,7 +323,7 @@ class Game:
         pygame.display.flip()
 
     def _draw_sprites(self) -> None:
-        for sprite in self.level.walls:
+        for sprite in self.world.level.walls:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         for sprite in self.world_items:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
@@ -401,10 +350,11 @@ class Game:
                                  (bx, by, fill, s.enemy_hp_bar_height))
 
     def _draw_npc_hint(self) -> None:
-        if not self._nearby_npc:
+        nearby_npc = self.world.get_nearby_npc()
+        if not nearby_npc:
             return
-        screen_pos = self.camera.apply(self._nearby_npc.rect)
-        text       = f"[E]  Talk to {self._nearby_npc.name}"
+        screen_pos = self.camera.apply(nearby_npc.rect)
+        text       = f"[E]  Talk to {nearby_npc.name}"
         surf       = self._font_interact.render(text, True, (200, 220, 255))
         pad        = 5
         bg         = pygame.Surface(
@@ -447,6 +397,7 @@ class Game:
             f"bullets: {len(self.bullets)}  enemies: {len(self.enemies)}",
             f"world_items: {len(self.world_items)}",
             f"enemy_bullets: {len(self.enemy_bullets)}",
+            f"level: {self.world.level.path if hasattr(self.world.level, 'path') else '?'}",
         ]
         for i, line in enumerate(lines):
             surf = font.render(line, True, (180, 220, 180))
@@ -454,4 +405,5 @@ class Game:
         for enemy in self.enemies:
             enemy.draw_debug(self.screen, self.camera.get_offset())
         self.audio.draw_debug(self.screen, self.camera.get_offset())
+        self.world.draw_debug(self.screen, self.camera.get_offset())
         p.draw_debug(self.screen, self.camera.get_offset())
