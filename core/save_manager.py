@@ -1,6 +1,5 @@
 import json
 import os
-import pygame
 from items.item_registry import serialize_item, deserialize_item
 
 
@@ -12,6 +11,9 @@ class SaveManager:
     """
     Сохраняет и загружает состояние игры в JSON.
     F5 — сохранить, F9 — загрузить.
+
+    При загрузке: уровень перезагружается через game._load_level(),
+    враги респавнятся из tmx, затем восстанавливается HP и state.
     """
 
     def save(self, game) -> bool:
@@ -43,18 +45,21 @@ class SaveManager:
     def has_save(self) -> bool:
         return os.path.exists(SAVE_FILE)
 
+    # Serialize
+
     def _serialize(self, game) -> dict:
         p = game.player
         return {
+            "level":      game.world.level.path,
             "player": {
-                "pos":                 [p.pos.x, p.pos.y],
-                "hp":                  p.hp,
-                "stamina":             p.stamina,
-                "active_weapon_slot":  p.active_weapon_slot,
+                "pos":               [p.pos.x, p.pos.y],
+                "hp":                p.hp,
+                "stamina":           p.stamina,
+                "active_weapon_slot": p.active_weapon_slot,
             },
-            "pouch":      self._serialize_inventory(p.pouch),
-            "backpack":   self._serialize_inventory(p.backpack),
-            "enemies":    self._serialize_enemies(game),
+            "pouch":       self._serialize_inventory(p.pouch),
+            "backpack":    self._serialize_inventory(p.backpack),
+            "enemies":     self._serialize_enemies(game),
             "world_items": self._serialize_world_items(game),
         }
 
@@ -90,42 +95,29 @@ class SaveManager:
                 })
         return result
 
+    # Deserialize
+
     def _deserialize(self, game, data: dict) -> None:
+        level_path = data.get("level", "levels/level_1.tmx")
+
         game.player_dead = False
-        game.all_sprites.empty()
-        game.bullets.empty()
-        game.enemies.empty()
-        game.world_items.empty()
-        game.enemy_bullets.empty()
+        game.player      = None
 
-        from actors.player import Player
-        from combat.weapon import Weapon
-        from core.hud import HUD
-        from core.camera import Camera
+        game._load_level(level_path, keep_player=False)
 
-        pd    = data["player"]
-        spawn = tuple(pd["pos"])
-
-        game.player = Player(spawn, game.settings, groups=[game.all_sprites])
-        game.player.hp              = pd.get("hp", game.player.max_hp)
-        game.player.stamina         = pd.get("stamina", game.player.stats.max_stamina)
+        pd = data["player"]
+        game.player.pos.update(pd["pos"][0], pd["pos"][1])
+        game.player.rect.center = (round(pd["pos"][0]), round(pd["pos"][1]))
+        game.player.hp                 = pd.get("hp", game.player.max_hp)
+        game.player.stamina            = pd.get("stamina", game.player.stats.max_stamina)
         game.player.active_weapon_slot = pd.get("active_weapon_slot", 0)
 
         self._deserialize_inventory(game.player.pouch,    data.get("pouch", []))
         self._deserialize_inventory(game.player.backpack, data.get("backpack", []))
 
-        game.weapon = Weapon(
-            owner=game.player,
-            settings=game.settings,
-            bullet_group=game.bullets,
-            all_sprites=game.all_sprites,
-        )
+        self._restore_enemies(game, data.get("enemies", []))
+        self._restore_world_items(game, data.get("world_items", []))
 
-        self._deserialize_enemies(game, data.get("enemies", []))
-        self._deserialize_world_items(game, data.get("world_items", []))
-
-        game.hud    = HUD(game.settings, game.player)
-        game.camera = Camera(game.settings)
         game._sync_weapon()
 
     def _deserialize_inventory(self, inventory, slots_data: list) -> None:
@@ -139,43 +131,26 @@ class SaveManager:
                 if item:
                     all_slots[i].put(item)
 
-    def _deserialize_enemies(self, game, enemies_data: list) -> None:
-        from actors.enemy import make_grunt, make_shooter, EnemyState
+    def _restore_enemies(self, game, enemies_data: list) -> None:
+        """
+        Враги уже заспавнены из tmx через _load_level.
+        Восстанавливаем только HP, позицию и state — без пересоздания.
+        Сопоставляем по индексу — порядок спавна детерминирован.
+        """
+        enemies = list(game.enemies)
+        for i, ed in enumerate(enemies_data):
+            if i >= len(enemies):
+                break
+            e = enemies[i]
+            e.pos.update(ed["pos"][0], ed["pos"][1])
+            e.rect.center = (round(ed["pos"][0]), round(ed["pos"][1]))
+            e.hp    = ed.get("hp", e.max_hp)
+            e.state = ed.get("state", e.state)
 
-        grunt_patrol  = [(800, 300), (800, 600), (1100, 600), (1100, 300)]
-
-        for ed in enemies_data:
-            pos         = tuple(ed["pos"])
-            armor_class = ed.get("armor_class", 0)
-            hp          = ed.get("hp", 60)
-            state       = ed.get("state", EnemyState.IDLE)
-            etype       = ed.get("type", "grunt")
-
-            if etype == "shooter":
-                e = make_shooter(
-                    pos=pos, target=game.player,
-                    armor_class=armor_class,
-                    groups=[game.all_sprites, game.enemies],
-                    bullet_group=game.enemy_bullets,
-                    all_sprites=game.all_sprites,
-                )
-            else:
-                e = make_grunt(
-                    pos=pos, target=game.player,
-                    armor_class=armor_class,
-                    groups=[game.all_sprites, game.enemies],
-                )
-                e.set_patrol(grunt_patrol)
-
-            e.hp            = hp
-            e.state         = state
-            e.pathfinder    = game.pathfinder
-            e.enemies_group = game.enemies
-
-    def _deserialize_world_items(self, game, items_data: list) -> None:
+    def _restore_world_items(self, game, items_data: list) -> None:
+        game.world_items.empty()
         from items.world_item import WorldItem
         for wd in items_data:
             item = deserialize_item(wd.get("item"))
             if item:
-                pos = tuple(wd["pos"])
-                WorldItem(item=item, pos=pos, groups=[game.world_items])
+                WorldItem(item=item, pos=tuple(wd["pos"]), groups=[game.world_items])
