@@ -104,9 +104,17 @@ class Game:
             e.enemies_group = self.enemies
     
     def _check_enemy_bullet_hits(self) -> None:
+        armor_class = self.player.get_armor_class()
         for bullet in self.enemy_bullets:
             if self.player.rect.colliderect(bullet.rect):
-                self.player.take_damage(bullet.damage)
+                damage, _ = resolve_hit(
+                    base_damage=bullet.damage,
+                    base_se=0.0,
+                    armor_pen=0,
+                    armor_class=armor_class,
+                    settings=self.settings,
+                )
+                self.player.take_damage(damage)
                 bullet.kill()
 
     def _give_test_items(self) -> None:
