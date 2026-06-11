@@ -3,20 +3,19 @@ from core.settings import Settings
 from core.camera import Camera
 from core.hud import HUD
 from core.level import Level
+from core.audio import AudioManager
+from core.pathfinder import Pathfinder
+from core.save_manager import SaveManager
+from core.dialog_manager import DialogManager
 from actors.player import Player
+from actors.enemy import make_grunt, make_shooter
+from actors.npc import NPC
 from combat.weapon import Weapon
-from actors.enemy import Enemy
+from combat.calculator import resolve_hit
 from items.world_item import WorldItem
 from items.consumable import make_medkit
 from items.weapon_item import WeaponItem, make_carbine, make_shotgun, make_sniper
 from items.ammo import make_ammo, AmmoType
-from combat.calculator import resolve_hit
-from actors.enemy import make_grunt, make_shooter
-from core.audio import AudioManager
-from core.pathfinder import Pathfinder
-from core.save_manager import SaveManager
-from actors.npc import NPC
-from core.dialog_manager import DialogManager
 
 
 class Game:
@@ -24,29 +23,25 @@ class Game:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.screen = pygame.display.set_mode(
-            (settings.screen_width, settings.screen_height)
-        )
+        self.screen   = pygame.display.set_mode((settings.screen_width, settings.screen_height))
         pygame.display.set_caption(settings.title)
-        self.clock = pygame.time.Clock()
+        self.clock   = pygame.time.Clock()
         self.running = True
 
-        self.all_sprites = pygame.sprite.Group()
-        self.bullets     = pygame.sprite.Group()
-        self.enemies     = pygame.sprite.Group()
-        self.world_items = pygame.sprite.Group()
+        self.all_sprites   = pygame.sprite.Group()
+        self.bullets       = pygame.sprite.Group()
+        self.enemies       = pygame.sprite.Group()
+        self.world_items   = pygame.sprite.Group()
         self.enemy_bullets = pygame.sprite.Group()
-        self.npcs = pygame.sprite.Group()
+        self.npcs          = pygame.sprite.Group()
 
-        self.level = Level("levels/level_1.txt", settings.grid_size)
+        self.level = Level("levels/level_1.tmx", settings.grid_size)
 
-        spawn = self.level.player_spawn
-        self.player = Player(spawn, settings, groups=[self.all_sprites])
+        spawn        = self.level.player_spawn
+        self.player  = Player(spawn, settings, groups=[self.all_sprites])
 
         self.pathfinder = Pathfinder(settings.grid_size)
-        self.pathfinder.build_from_walls(
-            self.level.walls, self.level.cols, self.level.rows
-        )
+        self.pathfinder.build_from_walls(self.level.walls, self.level.cols, self.level.rows)
 
         self.weapon = Weapon(
             owner=self.player,
@@ -55,32 +50,33 @@ class Game:
             all_sprites=self.all_sprites,
         )
 
-        self._spawn_enemies()
-        self._spawn_npcs()
+        self._spawn_from_level()
         self._give_test_items()
         self._spawn_world_items()
         self._sync_weapon()
 
-        self.camera = Camera(settings)
-        self.hud    = HUD(settings, self.player)
-        self.audio = AudioManager(settings)
-        self.debug  = True
+        self.camera       = Camera(settings)
+        self.hud          = HUD(settings, self.player)
+        self.audio        = AudioManager(settings)
+        self.save_manager = SaveManager()
+        self.dialog       = DialogManager(settings)
 
-        self._i_held_time: float     = 0.0
-        self._i_triggered: bool      = False
-        self._nearby_world_item: WorldItem = None
-        self._font_pickup = pygame.font.SysFont("monospace", 14)
+        self.debug        = True
+        self.player_dead  = False
 
-        self.player_dead: bool = False
+        self._i_held_time: float  = 0.0
+        self._i_triggered: bool   = False
+        self._nearby_world_item   = None
+        self._nearby_npc          = None
+
+        self._font_pickup   = pygame.font.SysFont("monospace", 14)
+        self._font_interact = pygame.font.SysFont("monospace", 14)
         self._death_font_big = pygame.font.SysFont("monospace", 72, bold=True)
         self._death_font_sm  = pygame.font.SysFont("monospace", 24)
 
-        self.save_manager = SaveManager()
-
-        self._nearby_npc = None
-        self._font_interact = pygame.font.SysFont("monospace", 14)
-
-        self.dialog = DialogManager(settings)
+    # ------------------------------------------------------------------
+    # Init helpers
+    # ------------------------------------------------------------------
 
     def _sync_weapon(self) -> None:
         item = self.player.get_active_weapon()
@@ -88,46 +84,50 @@ class Game:
             return
         self.weapon.equip(item if item else None)
 
-    def _spawn_enemies(self) -> None:
-        grunts = [
-            ((800, 400), 1),
-        ]
-        shooters = [
-            ((500, 800), 2),
-        ]
+    def _spawn_from_level(self) -> None:
+        for obj in self.level.objects:
+            t     = obj["type"]
+            pos   = (obj["x"], obj["y"])
+            props = obj["props"]
 
-        for pos, armor in grunts:
-            e = make_grunt(
-                pos=pos, target=self.player, armor_class=armor,
-                groups=[self.all_sprites, self.enemies],
-            )
-            e.pathfinder = self.pathfinder
-            e.enemies_group = self.enemies
-            e.set_patrol([(800, 300), (800, 600), (1100, 600), (1100, 300)])
-
-        for pos, armor in shooters:
-            e = make_shooter(
-                pos=pos, target=self.player, armor_class=armor,
-                groups=[self.all_sprites, self.enemies],
-                bullet_group=self.enemy_bullets,
-                all_sprites=self.all_sprites,
-            )
-            e.pathfinder = self.pathfinder
-            e.enemies_group = self.enemies
-    
-    def _check_enemy_bullet_hits(self) -> None:
-        armor_class = self.player.get_armor_class()
-        for bullet in self.enemy_bullets:
-            if self.player.rect.colliderect(bullet.rect):
-                damage, _ = resolve_hit(
-                    base_damage=bullet.damage,
-                    base_se=0.0,
-                    armor_pen=0,
-                    armor_class=armor_class,
-                    settings=self.settings,
+            if t == "enemy_grunt":
+                e = make_grunt(
+                    pos=pos, target=self.player,
+                    armor_class=props.get("armor_class", 0),
+                    groups=[self.all_sprites, self.enemies],
                 )
-                self.player.take_damage(damage)
-                bullet.kill()
+                e.pathfinder    = self.pathfinder
+                e.enemies_group = self.enemies
+                patrol = self._parse_patrol(props)
+                if patrol:
+                    e.set_patrol(patrol)
+
+            elif t == "enemy_shooter":
+                e = make_shooter(
+                    pos=pos, target=self.player,
+                    armor_class=props.get("armor_class", 0),
+                    groups=[self.all_sprites, self.enemies],
+                    bullet_group=self.enemy_bullets,
+                    all_sprites=self.all_sprites,
+                )
+                e.pathfinder    = self.pathfinder
+                e.enemies_group = self.enemies
+
+            elif t == "npc":
+                NPC(
+                    pos=pos,
+                    name=props.get("npc_name", "NPC"),
+                    dialog_file=props.get("dialog_file", ""),
+                    groups=[self.all_sprites, self.npcs],
+                )
+
+    def _parse_patrol(self, props: dict) -> list:
+        points = []
+        i = 1
+        while f"patrol_x{i}" in props and f"patrol_y{i}" in props:
+            points.append((props[f"patrol_x{i}"], props[f"patrol_y{i}"]))
+            i += 1
+        return points
 
     def _give_test_items(self) -> None:
         test_items = [
@@ -143,7 +143,6 @@ class Game:
                 slot.put(item)
 
     def _spawn_world_items(self) -> None:
-        from items.ammo import make_ammo, AmmoType
         from items.armor import make_light_armor, make_medium_armor, make_heavy_armor
         cx, cy = self.settings.screen_width // 2, self.settings.screen_height // 2
         items = [
@@ -159,10 +158,10 @@ class Game:
         ]
         for item, pos in items:
             WorldItem(item=item, pos=pos, groups=[self.world_items])
-    
-    def _spawn_npcs(self) -> None:
-        NPC(pos=(180, 580), name="Guard", dialog_file="guard.json",
-            groups=[self.all_sprites, self.npcs])
+
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
 
     def run(self) -> None:
         while self.running:
@@ -172,6 +171,10 @@ class Game:
             if not self.player_dead:
                 self._update(dt)
             self._draw()
+
+    # ------------------------------------------------------------------
+    # Events
+    # ------------------------------------------------------------------
 
     def _handle_i_hold(self, dt: float) -> None:
         if self.dialog.active:
@@ -194,9 +197,10 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-                elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
                     self._restart()
             return
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -205,6 +209,7 @@ class Game:
                 if self.dialog.active:
                     self.dialog.handle_key(event.key)
                     return
+
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
                 elif event.key == pygame.K_1:
@@ -264,19 +269,115 @@ class Game:
                 self.hud.handle_mouse_motion(event.pos)
                 self.hud.update_world_hover(event.pos, self.world_items, self.camera.get_offset())
 
-    def _try_drop(self) -> None:
-        from items.item import ItemType
-        weapon_slots = [s for s in self.player.pouch.typed_slots if s.allowed_type == ItemType.WEAPON]
-        slot = weapon_slots[self.player.active_weapon_slot]
-        if slot.empty:
+    # ------------------------------------------------------------------
+    # Update
+    # ------------------------------------------------------------------
+
+    def _update(self, dt: float) -> None:
+        if self.dialog.active:
+            self.camera.follow(self.player)
             return
-        item = slot.take()
-        drop_pos = (
-            self.player.pos.x + self.player.facing.x * 48,
-            self.player.pos.y + self.player.facing.y * 48,
-        )
-        WorldItem(item=item, pos=drop_pos, groups=[self.world_items])
-        self._sync_weapon()
+
+        self.player.update(dt, self.level.walls)
+        self.enemies.update(dt, self.level.walls)
+        self.bullets.update(dt)
+        self.enemy_bullets.update(dt)
+        self.world_items.update(dt)
+        self.weapon.update(dt, self.camera.get_offset())
+        self.audio.update(dt)
+
+        self._check_sound_events()
+
+        if pygame.mouse.get_pressed()[0] and not self.hud.is_open():
+            if self.weapon.try_shoot():
+                radius = (self.weapon._weapon_item.stats.sound_radius
+                          if self.weapon.has_weapon
+                          else self.settings.gunshot_sound_radius)
+                self.audio.play_at("gunshot", self.player.pos, radius)
+
+        self._check_bullet_hits()
+        self._check_bullet_wall_hits()
+        self._check_contact_damage()
+        self._check_enemy_bullet_hits()
+        self._update_nearby_item()
+        self._update_nearby_npc()
+        self.camera.follow(self.player)
+
+        if not self.player.alive:
+            self.player_dead = True
+
+    def _check_sound_events(self) -> None:
+        for ev in self.audio.get_sound_events():
+            for enemy in self.enemies:
+                enemy.hear_sound(ev["pos"], ev["radius"])
+
+    def _check_bullet_hits(self) -> None:
+        active    = self.player.get_active_weapon()
+        armor_pen = active.stats.armor_pen if active else 0
+        hits      = pygame.sprite.groupcollide(self.enemies, self.bullets, False, True)
+        for enemy, bullet_list in hits.items():
+            for bullet in bullet_list:
+                damage, se = resolve_hit(
+                    base_damage=bullet.damage,
+                    base_se=bullet.stopping_effect,
+                    armor_pen=armor_pen,
+                    armor_class=enemy.armor_class,
+                    settings=self.settings,
+                )
+                enemy.take_damage(damage)
+                if se > 0 and bullet.velocity.length() > 0:
+                    enemy.apply_stopping_effect(bullet.velocity, se)
+
+    def _check_bullet_wall_hits(self) -> None:
+        pygame.sprite.groupcollide(self.bullets,       self.level.walls, True, False)
+        pygame.sprite.groupcollide(self.enemy_bullets, self.level.walls, True, False)
+
+    def _check_contact_damage(self) -> None:
+        s           = self.settings
+        armor_class = self.player.get_armor_class()
+        for enemy in self.enemies:
+            damage, _ = resolve_hit(
+                base_damage=s.enemy_contact_damage,
+                base_se=0.0,
+                armor_pen=0,
+                armor_class=armor_class,
+                settings=s,
+            )
+            enemy.try_deal_contact_damage(self.player, damage, s.enemy_contact_cooldown)
+
+    def _check_enemy_bullet_hits(self) -> None:
+        armor_class = self.player.get_armor_class()
+        for bullet in self.enemy_bullets:
+            if self.player.rect.colliderect(bullet.rect):
+                damage, _ = resolve_hit(
+                    base_damage=bullet.damage,
+                    base_se=0.0,
+                    armor_pen=0,
+                    armor_class=armor_class,
+                    settings=self.settings,
+                )
+                self.player.take_damage(damage)
+                bullet.kill()
+
+    def _update_nearby_item(self) -> None:
+        self._nearby_world_item = None
+        closest_dist = float("inf")
+        for wi in self.world_items:
+            dist = (wi.world_pos - self.player.pos).length()
+            if wi.is_in_pickup_range(self.player.pos) and dist < closest_dist:
+                closest_dist = dist
+                self._nearby_world_item = wi
+
+    def _update_nearby_npc(self) -> None:
+        self._nearby_npc = None
+        for npc in self.npcs:
+            if npc.is_in_interact_range(self.player.pos):
+                self._nearby_npc = npc
+                break
+
+    # ------------------------------------------------------------------
+    # Pickup / drop
+    # ------------------------------------------------------------------
 
     def _try_pickup(self) -> None:
         if not self._nearby_world_item:
@@ -290,7 +391,7 @@ class Game:
             for slot in weapon_slots:
                 if slot.empty:
                     slot.item = item
-                    picked = True
+                    picked    = True
                     break
             if not picked:
                 old = weapon_slots[self.player.active_weapon_slot].item
@@ -321,7 +422,7 @@ class Game:
                 if remaining <= 0:
                     break
                 if (slot.item and type(slot.item) == type(item)
-                        and hasattr(slot.item, 'ammo_type')
+                        and hasattr(slot.item, "ammo_type")
                         and slot.item.ammo_type == item.ammo_type
                         and slot.item.stack_count < slot.item.max_stack):
                     space = slot.item.max_stack - slot.item.stack_count
@@ -339,60 +440,24 @@ class Game:
                     break
         return remaining
 
-    def _update(self, dt: float) -> None:
-        if self.dialog.active:
-            self.camera.follow(self.player)
+    def _try_drop(self) -> None:
+        from items.item import ItemType
+        weapon_slots = [s for s in self.player.pouch.typed_slots if s.allowed_type == ItemType.WEAPON]
+        slot = weapon_slots[self.player.active_weapon_slot]
+        if slot.empty:
             return
+        item = slot.take()
+        drop_pos = (
+            self.player.pos.x + self.player.facing.x * 48,
+            self.player.pos.y + self.player.facing.y * 48,
+        )
+        WorldItem(item=item, pos=drop_pos, groups=[self.world_items])
+        self._sync_weapon()
 
-        self.player.update(dt, self.level.walls)
-        self.enemies.update(dt, self.level.walls)
-        self.bullets.update(dt)
-        self.enemy_bullets.update(dt)
-        self.world_items.update(dt)
-        self.weapon.update(dt, self.camera.get_offset())
+    # ------------------------------------------------------------------
+    # Restart
+    # ------------------------------------------------------------------
 
-        self.audio.update(dt)
-        self._check_sound_events()
-
-        if pygame.mouse.get_pressed()[0] and not self.hud.is_open():
-            if self.weapon.try_shoot():
-                radius = (self.weapon._weapon_item.stats.sound_radius
-                        if self.weapon.has_weapon
-                        else self.settings.gunshot_sound_radius)
-                self.audio.play_at("gunshot", self.player.pos, radius)
-
-        self._check_bullet_hits()
-        self._check_bullet_wall_hits()
-        self._check_contact_damage()
-        self._check_enemy_bullet_hits()
-        self._update_nearby_item()
-        self._update_nearby_npc()
-        self.camera.follow(self.player)
-
-        if not self.player.alive:
-            self.player_dead = True
-    
-    def _check_sound_events(self) -> None:
-        for ev in self.audio.get_sound_events():
-            for enemy in self.enemies:
-                enemy.hear_sound(ev["pos"], ev["radius"])
-
-    def _update_nearby_item(self) -> None:
-        self._nearby_world_item = None
-        closest_dist = float("inf")
-        for wi in self.world_items:
-            dist = (wi.world_pos - self.player.pos).length()
-            if wi.is_in_pickup_range(self.player.pos) and dist < closest_dist:
-                closest_dist = dist
-                self._nearby_world_item = wi
-    
-    def _update_nearby_npc(self) -> None:
-        self._nearby_npc = None
-        for npc in self.npcs:
-            if npc.is_in_interact_range(self.player.pos):
-                self._nearby_npc = npc
-                break
-    
     def _restart(self) -> None:
         self.player_dead = False
         self.all_sprites.empty()
@@ -400,118 +465,57 @@ class Game:
         self.enemies.empty()
         self.world_items.empty()
         self.enemy_bullets.empty()
+        self.npcs.empty()
 
-        spawn = self.level.player_spawn
-        self.player = Player(spawn, self.settings, groups=[self.all_sprites])
-        self.weapon = Weapon(
+        spawn        = self.level.player_spawn
+        self.player  = Player(spawn, self.settings, groups=[self.all_sprites])
+        self.weapon  = Weapon(
             owner=self.player,
             settings=self.settings,
             bullet_group=self.bullets,
             all_sprites=self.all_sprites,
         )
-        self.hud = HUD(self.settings, self.player)
-        self._spawn_enemies()
+        self.hud     = HUD(self.settings, self.player)
+        self.camera  = Camera(self.settings)
+
+        self._spawn_from_level()
         self._give_test_items()
         self._spawn_world_items()
         self._sync_weapon()
-        self.npcs.empty()
-        self._spawn_npcs()
-        self.camera = Camera(self.settings)
 
-    def _check_bullet_hits(self) -> None:
-        active    = self.player.get_active_weapon()
-        armor_pen = active.stats.armor_pen if active else 0
-        hits = pygame.sprite.groupcollide(self.enemies, self.bullets, False, True)
-        for enemy, bullet_list in hits.items():
-            for bullet in bullet_list:
-                damage, se = resolve_hit(
-                    base_damage=bullet.damage,
-                    base_se=bullet.stopping_effect,
-                    armor_pen=armor_pen,
-                    armor_class=enemy.armor_class,
-                    settings=self.settings,
-                )
-                enemy.take_damage(damage)
-                if se > 0 and bullet.velocity.length() > 0:
-                    enemy.apply_stopping_effect(bullet.velocity, se)
-
-    def _check_bullet_wall_hits(self) -> None:
-        pygame.sprite.groupcollide(self.bullets, self.level.walls, True, False)
-        pygame.sprite.groupcollide(self.enemy_bullets, self.level.walls, True, False)
-
-    def _check_contact_damage(self) -> None:
-        s           = self.settings
-        armor_class = self.player.get_armor_class()
-        for enemy in self.enemies:
-            damage, _ = resolve_hit(
-                base_damage=s.enemy_contact_damage,
-                base_se=0.0,
-                armor_pen=0,
-                armor_class=armor_class,
-                settings=s,
-            )
-            enemy.try_deal_contact_damage(self.player, damage, s.enemy_contact_cooldown)
+    # ------------------------------------------------------------------
+    # Draw
+    # ------------------------------------------------------------------
 
     def _draw(self) -> None:
         self.screen.fill(self.settings.bg_color)
-        self._draw_grid()
+        self.level.draw_floor(self.screen, self.camera.get_offset())
         self._draw_sprites()
         self._draw_enemy_hp_bars()
         self.hud.draw_world_hover(self.screen, self.camera.get_offset())
         self._draw_pickup_hint()
-        self.hud.draw(self.screen, i_hold_progress=self._i_held_time / self.settings.backpack_hold_time, weapon=self.weapon)
+        self._draw_npc_hint()
+        self.hud.draw(self.screen,
+                      i_hold_progress=self._i_held_time / self.settings.backpack_hold_time,
+                      weapon=self.weapon)
         if self.debug:
             self._draw_debug_info()
         if self.player_dead:
             self._draw_death_screen()
         self._draw_save_hint(self.screen)
-        self._draw_npc_hint()
         self.dialog.draw(self.screen)
         pygame.display.flip()
-
-    def _draw_grid(self) -> None:
-        gs = self.settings.grid_size
-        offset = self.camera.get_offset()
-        w, h = self.settings.screen_width, self.settings.screen_height
-        start_x = int(offset.x // gs) * gs
-        start_y = int(offset.y // gs) * gs
-        x = start_x
-        while x < offset.x + w + gs:
-            pygame.draw.line(self.screen, self.settings.grid_color,
-                             (x - offset.x, 0), (x - offset.x, h))
-            x += gs
-        y = start_y
-        while y < offset.y + h + gs:
-            pygame.draw.line(self.screen, self.settings.grid_color,
-                             (0, y - offset.y), (w, y - offset.y))
-            y += gs
-    
-    def _draw_death_screen(self) -> None:
-        overlay = pygame.Surface(
-            (self.settings.screen_width, self.settings.screen_height),
-            pygame.SRCALPHA
-        )
-        overlay.fill((0, 0, 0, 160))
-        self.screen.blit(overlay, (0, 0))
-
-        cx = self.settings.screen_width  // 2
-        cy = self.settings.screen_height // 2
-
-        title = self._death_font_big.render("YOU DIED", True, (200, 40, 40))
-        hint  = self._death_font_sm.render("press any key to restart", True, (160, 160, 160))
-
-        self.screen.blit(title, title.get_rect(center=(cx, cy - 40)))
-        self.screen.blit(hint,  hint.get_rect(center=(cx, cy + 40)))
 
     def _draw_sprites(self) -> None:
         for sprite in self.level.walls:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         for sprite in self.world_items:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
-        for npc in self.npcs:                                          # ← сюда
+        for npc in self.npcs:
             self.screen.blit(npc.image, self.camera.apply(npc.rect))
             npc.draw_name(self.screen, self.camera.get_offset())
-        for sprite in [*self.enemy_bullets.sprites(), *self.bullets.sprites(), *self.enemies.sprites(), self.player]:
+        for sprite in [*self.enemy_bullets.sprites(), *self.bullets.sprites(),
+                       *self.enemies.sprites(), self.player]:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         if self.weapon.has_weapon:
             self.screen.blit(self.weapon.image, self.camera.apply(self.weapon.rect))
@@ -537,16 +541,52 @@ class Game:
         text       = f"[E]  {item.name}"
         surf       = self._font_pickup.render(text, True, (240, 220, 140))
         pad        = 5
-        bg         = pygame.Surface((surf.get_width() + pad * 2, surf.get_height() + pad * 2), pygame.SRCALPHA)
+        bg         = pygame.Surface((surf.get_width() + pad * 2, surf.get_height() + pad * 2),
+                                    pygame.SRCALPHA)
         bg.fill((10, 10, 20, 180))
         bx = screen_pos.centerx - bg.get_width() // 2
         by = screen_pos.top - bg.get_height() - 6
-        self.screen.blit(bg, (bx, by))
+        self.screen.blit(bg,   (bx, by))
         self.screen.blit(surf, (bx + pad, by + pad))
+
+    def _draw_npc_hint(self) -> None:
+        if not self._nearby_npc:
+            return
+        screen_pos = self.camera.apply(self._nearby_npc.rect)
+        text       = f"[E]  Talk to {self._nearby_npc.name}"
+        surf       = self._font_interact.render(text, True, (200, 220, 255))
+        pad        = 5
+        bg         = pygame.Surface((surf.get_width() + pad * 2, surf.get_height() + pad * 2),
+                                    pygame.SRCALPHA)
+        bg.fill((10, 10, 20, 180))
+        bx = screen_pos.centerx - bg.get_width() // 2
+        by = screen_pos.top - bg.get_height() - 6
+        self.screen.blit(bg,   (bx, by))
+        self.screen.blit(surf, (bx + pad, by + pad))
+
+    def _draw_death_screen(self) -> None:
+        overlay = pygame.Surface(
+            (self.settings.screen_width, self.settings.screen_height), pygame.SRCALPHA
+        )
+        overlay.fill((0, 0, 0, 160))
+        self.screen.blit(overlay, (0, 0))
+        cx = self.settings.screen_width  // 2
+        cy = self.settings.screen_height // 2
+        title = self._death_font_big.render("YOU DIED", True, (200, 40, 40))
+        hint  = self._death_font_sm.render("press any key to restart", True, (160, 160, 160))
+        self.screen.blit(title, title.get_rect(center=(cx, cy - 40)))
+        self.screen.blit(hint,  hint.get_rect(center=(cx, cy + 40)))
+
+    def _draw_save_hint(self, screen: pygame.Surface) -> None:
+        font = pygame.font.SysFont("monospace", 12)
+        has  = self.save_manager.has_save()
+        line = "F5 save  |  F9 load" + (" ✓" if has else "")
+        surf = font.render(line, True, (100, 100, 120))
+        screen.blit(surf, (self.settings.screen_width - surf.get_width() - 12, 8))
 
     def _draw_debug_info(self) -> None:
         font = pygame.font.SysFont("monospace", 16)
-        p = self.player
+        p    = self.player
         lines = [
             f"FPS: {self.clock.get_fps():.0f}",
             f"pos: ({p.pos.x:.0f}, {p.pos.y:.0f})",
@@ -563,32 +603,3 @@ class Game:
             enemy.draw_debug(self.screen, self.camera.get_offset())
         self.audio.draw_debug(self.screen, self.camera.get_offset())
         p.draw_debug(self.screen, self.camera.get_offset())
-    
-    def _draw_save_hint(self, screen: pygame.Surface) -> None:
-        font = pygame.font.SysFont("monospace", 12)
-        has  = self.save_manager.has_save()
-        line = "F5 save  |  F9 load" + (" ✓" if has else "")
-        surf = font.render(line, True, (100, 100, 120))
-        screen.blit(surf, (self.settings.screen_width - surf.get_width() - 12, 8))
-    
-    def _draw_npcs(self) -> None:
-        for npc in self.npcs:
-            self.screen.blit(npc.image, self.camera.apply(npc.rect))
-            npc.draw_name(self.screen, self.camera.get_offset())
-
-    def _draw_npc_hint(self) -> None:
-        if not self._nearby_npc:
-            return
-        screen_pos = self.camera.apply(self._nearby_npc.rect)
-        text = f"[E]  Talk to {self._nearby_npc.name}"
-        surf = self._font_interact.render(text, True, (200, 220, 255))
-        pad  = 5
-        bg   = pygame.Surface(
-            (surf.get_width() + pad * 2, surf.get_height() + pad * 2),
-            pygame.SRCALPHA
-        )
-        bg.fill((10, 10, 20, 180))
-        bx = screen_pos.centerx - bg.get_width() // 2
-        by = screen_pos.top - bg.get_height() - 6
-        self.screen.blit(bg, (bx, by))
-        self.screen.blit(surf, (bx + pad, by + pad))
