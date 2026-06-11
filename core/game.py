@@ -66,6 +66,10 @@ class Game:
         self._nearby_world_item: WorldItem = None
         self._font_pickup = pygame.font.SysFont("monospace", 14)
 
+        self.player_dead: bool = False
+        self._death_font_big = pygame.font.SysFont("monospace", 72, bold=True)
+        self._death_font_sm  = pygame.font.SysFont("monospace", 24)
+
     def _sync_weapon(self) -> None:
         item = self.player.get_active_weapon()
         if item is self.weapon._weapon_item:
@@ -141,7 +145,8 @@ class Game:
             dt = self.clock.tick(self.settings.fps) / 1000.0
             self._handle_i_hold(dt)
             self._handle_events()
-            self._update(dt)
+            if not self.player_dead:
+                self._update(dt)
             self._draw()
 
     def _handle_i_hold(self, dt: float) -> None:
@@ -159,6 +164,13 @@ class Game:
             self._i_triggered = False
 
     def _handle_events(self) -> None:
+        if self.player_dead:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                    self._restart()
+            return
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -315,6 +327,9 @@ class Game:
         self._check_enemy_bullet_hits()
         self._update_nearby_item()
         self.camera.follow(self.player)
+
+        if not self.player.alive:
+            self.player_dead = True
     
     def _check_sound_events(self) -> None:
         for ev in self.audio.get_sound_events():
@@ -329,6 +344,29 @@ class Game:
             if wi.is_in_pickup_range(self.player.pos) and dist < closest_dist:
                 closest_dist = dist
                 self._nearby_world_item = wi
+    
+    def _restart(self) -> None:
+        self.player_dead = False
+        self.all_sprites.empty()
+        self.bullets.empty()
+        self.enemies.empty()
+        self.world_items.empty()
+        self.enemy_bullets.empty()
+
+        spawn = self.level.player_spawn
+        self.player = Player(spawn, self.settings, groups=[self.all_sprites])
+        self.weapon = Weapon(
+            owner=self.player,
+            settings=self.settings,
+            bullet_group=self.bullets,
+            all_sprites=self.all_sprites,
+        )
+        self.hud = HUD(self.settings, self.player)
+        self._spawn_enemies()
+        self._give_test_items()
+        self._spawn_world_items()
+        self._sync_weapon()
+        self.camera = Camera(self.settings)
 
     def _check_bullet_hits(self) -> None:
         active    = self.player.get_active_weapon()
@@ -374,6 +412,8 @@ class Game:
         self.hud.draw(self.screen, i_hold_progress=self._i_held_time / self.settings.backpack_hold_time, weapon=self.weapon)
         if self.debug:
             self._draw_debug_info()
+        if self.player_dead:
+            self._draw_death_screen()
         pygame.display.flip()
 
     def _draw_grid(self) -> None:
@@ -392,6 +432,23 @@ class Game:
             pygame.draw.line(self.screen, self.settings.grid_color,
                              (0, y - offset.y), (w, y - offset.y))
             y += gs
+    
+    def _draw_death_screen(self) -> None:
+        overlay = pygame.Surface(
+            (self.settings.screen_width, self.settings.screen_height),
+            pygame.SRCALPHA
+        )
+        overlay.fill((0, 0, 0, 160))
+        self.screen.blit(overlay, (0, 0))
+
+        cx = self.settings.screen_width  // 2
+        cy = self.settings.screen_height // 2
+
+        title = self._death_font_big.render("YOU DIED", True, (200, 40, 40))
+        hint  = self._death_font_sm.render("press any key to restart", True, (160, 160, 160))
+
+        self.screen.blit(title, title.get_rect(center=(cx, cy - 40)))
+        self.screen.blit(hint,  hint.get_rect(center=(cx, cy + 40)))
 
     def _draw_sprites(self) -> None:
         for sprite in self.level.walls:
