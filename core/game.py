@@ -15,6 +15,7 @@ from actors.enemy import make_grunt, make_shooter
 from core.audio import AudioManager
 from core.pathfinder import Pathfinder
 from core.save_manager import SaveManager
+from actors.npc import NPC
 
 
 class Game:
@@ -34,6 +35,7 @@ class Game:
         self.enemies     = pygame.sprite.Group()
         self.world_items = pygame.sprite.Group()
         self.enemy_bullets = pygame.sprite.Group()
+        self.npcs = pygame.sprite.Group()
 
         self.level = Level("levels/level_1.txt", settings.grid_size)
 
@@ -53,6 +55,7 @@ class Game:
         )
 
         self._spawn_enemies()
+        self._spawn_npcs()
         self._give_test_items()
         self._spawn_world_items()
         self._sync_weapon()
@@ -72,6 +75,9 @@ class Game:
         self._death_font_sm  = pygame.font.SysFont("monospace", 24)
 
         self.save_manager = SaveManager()
+
+        self._nearby_npc = None
+        self._font_interact = pygame.font.SysFont("monospace", 14)
 
     def _sync_weapon(self) -> None:
         item = self.player.get_active_weapon()
@@ -150,6 +156,9 @@ class Game:
         ]
         for item, pos in items:
             WorldItem(item=item, pos=pos, groups=[self.world_items])
+    
+    def _spawn_npcs(self) -> None:
+        NPC(pos=(180, 580), name="Guard", groups=[self.all_sprites, self.npcs])
 
     def run(self) -> None:
         while self.running:
@@ -204,7 +213,10 @@ class Game:
                 elif event.key == pygame.K_r:
                     self.weapon.try_reload()
                 elif event.key == pygame.K_e:
-                    self._try_pickup()
+                    if self._nearby_npc:
+                        print(f"[NPC] talked to {self._nearby_npc.name}")
+                    else:
+                        self._try_pickup()
                 elif event.key == pygame.K_g:
                     self._try_drop()
                 elif event.key == pygame.K_F5:
@@ -341,6 +353,7 @@ class Game:
         self._check_contact_damage()
         self._check_enemy_bullet_hits()
         self._update_nearby_item()
+        self._update_nearby_npc()
         self.camera.follow(self.player)
 
         if not self.player.alive:
@@ -359,6 +372,13 @@ class Game:
             if wi.is_in_pickup_range(self.player.pos) and dist < closest_dist:
                 closest_dist = dist
                 self._nearby_world_item = wi
+    
+    def _update_nearby_npc(self) -> None:
+        self._nearby_npc = None
+        for npc in self.npcs:
+            if npc.is_in_interact_range(self.player.pos):
+                self._nearby_npc = npc
+                break
     
     def _restart(self) -> None:
         self.player_dead = False
@@ -381,6 +401,8 @@ class Game:
         self._give_test_items()
         self._spawn_world_items()
         self._sync_weapon()
+        self.npcs.empty()
+        self._spawn_npcs()
         self.camera = Camera(self.settings)
 
     def _check_bullet_hits(self) -> None:
@@ -430,6 +452,8 @@ class Game:
         if self.player_dead:
             self._draw_death_screen()
         self._draw_save_hint(self.screen)
+        self._draw_npcs()
+        self._draw_npc_hint()
         pygame.display.flip()
 
     def _draw_grid(self) -> None:
@@ -530,3 +554,25 @@ class Game:
         line = "F5 save  |  F9 load" + (" ✓" if has else "")
         surf = font.render(line, True, (100, 100, 120))
         screen.blit(surf, (self.settings.screen_width - surf.get_width() - 12, 8))
+    
+    def _draw_npcs(self) -> None:
+        for npc in self.npcs:
+            self.screen.blit(npc.image, self.camera.apply(npc.rect))
+            npc.draw_name(self.screen, self.camera.get_offset())
+
+    def _draw_npc_hint(self) -> None:
+        if not self._nearby_npc:
+            return
+        screen_pos = self.camera.apply(self._nearby_npc.rect)
+        text = f"[E]  Talk to {self._nearby_npc.name}"
+        surf = self._font_interact.render(text, True, (200, 220, 255))
+        pad  = 5
+        bg   = pygame.Surface(
+            (surf.get_width() + pad * 2, surf.get_height() + pad * 2),
+            pygame.SRCALPHA
+        )
+        bg.fill((10, 10, 20, 180))
+        bx = screen_pos.centerx - bg.get_width() // 2
+        by = screen_pos.top - bg.get_height() - 6
+        self.screen.blit(bg, (bx, by))
+        self.screen.blit(surf, (bx + pad, by + pad))
