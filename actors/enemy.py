@@ -5,25 +5,35 @@ from items.stats import Stats
 
 
 class EnemyState:
-    IDLE  = "idle"
-    CHASE = "chase"
+    IDLE   = "idle"
+    CHASE  = "chase"
+    SEARCH = "search"
+    ALERT  = "alert"
+
+
+DEBUG_COLORS = {
+    EnemyState.IDLE:   (80,  200, 80,  40),
+    EnemyState.CHASE:  (220, 80,  80,  40),
+    EnemyState.SEARCH: (220, 180, 60,  40),
+    EnemyState.ALERT:  (180, 120, 220, 40),
+}
 
 
 class Enemy(Actor):
     """
-    Базовый враг. Поведение определяется стейт-машиной.
-    Состояния: IDLE (стоит) → CHASE (преследует).
-    Зона видения: треугольник 125° на дистанцию vision_range.
-    Raycast проверяет стены — если стена перекрывает, игрок не виден.
-    Один раз увидел — преследует до конца (агр не сбрасывается).
+    Стейт-машина: IDLE → CHASE → SEARCH → ALERT → IDLE.
+    SEARCH: идёт к последней известной позиции, крутится.
+    ALERT:  стоит на месте, насторожён, через timeout → IDLE.
     """
 
-    KNOCKBACK_FRICTION = 8.0
-    VISION_ANGLE       = 125.0
-    VISION_RANGE       = 280.0
-    DEBUG_COLOR_IDLE   = (80, 200, 80, 40)
-    DEBUG_COLOR_CHASE  = (220, 80, 80, 40)
-    DEBUG_RAY_COLOR    = (255, 255, 100, 120)
+    KNOCKBACK_FRICTION  = 8.0
+    VISION_ANGLE        = 125.0
+    VISION_RANGE        = 280.0
+
+    SEARCH_ROTATE_TIME  = 2.5
+    ALERT_TIMEOUT       = 10.0
+    ALERT_REACT_DELAY   = 0.4
+    ROTATE_SPEED        = 90.0
 
     def __init__(
         self,
@@ -56,13 +66,19 @@ class Enemy(Actor):
         self._stun_timer: float       = 0.0
         self._knockback_vel           = pygame.math.Vector2(0, 0)
 
-        self.state      = EnemyState.IDLE
-        self._ai_update = self._ai_grunt
+        self.state: str         = EnemyState.IDLE
+        self._ai_update         = self._ai_grunt
 
-        self._path: list      = []
-        self._path_timer: float = 0.0
+        self._last_known_pos: pygame.math.Vector2 = pygame.math.Vector2(pos)
+        self._search_rotate_timer: float = 0.0
+        self._alert_timer: float         = 0.0
+        self._alert_react_timer: float   = 0.0
+        self._facing_angle: float        = 0.0
+
+        self._path: list           = []
+        self._path_timer: float    = 0.0
         self._path_interval: float = 0.4
-        self.pathfinder       = None
+        self.pathfinder            = None
 
         self.can_shoot: bool        = False
         self._shoot_cooldown: float = 0.0
@@ -91,28 +107,28 @@ class Enemy(Actor):
     def hear_sound(self, world_pos: pygame.math.Vector2, radius: float) -> None:
         if self.state == EnemyState.CHASE:
             return
-        if (self.pos - world_pos).length() <= radius:
+        if (self.pos - world_pos).length() > radius:
+            return
+
+        if self.state == EnemyState.IDLE:
+            self._last_known_pos = pygame.math.Vector2(world_pos)
+            self.state = EnemyState.CHASE
+        elif self.state in (EnemyState.ALERT, EnemyState.SEARCH):
+            self._last_known_pos = pygame.math.Vector2(world_pos)
             self.state = EnemyState.CHASE
 
     def can_see_target(self) -> bool:
         delta = self.target.pos - self.pos
-        dist  = delta.length()
-        if dist > self.vision_range:
+        if delta.length() > self.vision_range:
             return False
-
         angle_to_target = math.degrees(math.atan2(delta.y, delta.x))
         facing_angle    = math.degrees(math.atan2(self.facing.y, self.facing.x))
         diff = (angle_to_target - facing_angle + 180) % 360 - 180
         if abs(diff) > self.vision_angle / 2:
             return False
-
         return not self._ray_hits_wall(self.pos, self.target.pos)
 
-    def _ray_hits_wall(
-        self,
-        start: pygame.math.Vector2,
-        end: pygame.math.Vector2,
-    ) -> bool:
+    def _ray_hits_wall(self, start: pygame.math.Vector2, end: pygame.math.Vector2) -> bool:
         if not self.walls:
             return False
         for wall in self.walls:
@@ -123,70 +139,128 @@ class Enemy(Actor):
     def _update_facing(self) -> None:
         if self.velocity.length() > 0.5:
             self.facing = self.velocity.normalize()
+            self._facing_angle = math.degrees(math.atan2(self.facing.y, self.facing.x))
 
-    def _update_state(self) -> None:
+    def _update_state(self, dt: float) -> None:
         if self.state == EnemyState.IDLE:
             if self.can_see_target():
+                self._last_known_pos = pygame.math.Vector2(self.target.pos)
                 self.state = EnemyState.CHASE
+
+        elif self.state == EnemyState.CHASE:
+            if self.can_see_target():
+                self._last_known_pos = pygame.math.Vector2(self.target.pos)
+            else:
+                self.state = EnemyState.SEARCH
+                self._search_rotate_timer = self.SEARCH_ROTATE_TIME
+                self._path = []
+
+        elif self.state == EnemyState.SEARCH:
+            if self.can_see_target():
+                self._last_known_pos = pygame.math.Vector2(self.target.pos)
+                self.state = EnemyState.CHASE
+
+        elif self.state == EnemyState.ALERT:
+            self._alert_timer -= dt
+            if self.can_see_target():
+                self._alert_react_timer -= dt
+                if self._alert_react_timer <= 0:
+                    self._last_known_pos = pygame.math.Vector2(self.target.pos)
+                    self.state = EnemyState.CHASE
+            else:
+                self._alert_react_timer = self.ALERT_REACT_DELAY
+            if self._alert_timer <= 0:
+                self.state = EnemyState.IDLE
 
     def _ai_grunt(self, dt: float) -> None:
         if self.state == EnemyState.IDLE:
             self.velocity.update(0, 0)
-            return
-        self._follow_path(dt)
-
-    def _follow_path(self, dt: float) -> None:
-        self._path_timer -= dt
-        if self._path_timer <= 0:
-            self._path_timer = self._path_interval
-            if self.pathfinder:
-                self._path = self.pathfinder.find_path(self.pos, self.target.pos)
-
-        if not self._path:
-            delta = self.target.pos - self.pos
-            if delta.length() > 1:
-                self.velocity = delta.normalize() * self.speed
-            else:
-                self.velocity.update(0, 0)
-            return
-
-        if len(self._path) > 1:
-            next_point = self._path[1]
-        else:
-            next_point = self._path[0]
-
-        delta = next_point - self.pos
-        if delta.length() < self.speed * dt + 4:
-            if len(self._path) > 1:
-                self._path.pop(0)
-
-        if delta.length() > 1:
-            self.velocity = delta.normalize() * self.speed
-        else:
+        elif self.state == EnemyState.CHASE:
+            self._follow_path_to(self.target.pos, dt)
+        elif self.state == EnemyState.SEARCH:
+            self._do_search(dt)
+        elif self.state == EnemyState.ALERT:
             self.velocity.update(0, 0)
+            self._do_alert_rotate(dt)
 
     def _ai_shooter(self, dt: float) -> None:
         if self.state == EnemyState.IDLE:
             self.velocity.update(0, 0)
+            return
+        elif self.state == EnemyState.SEARCH:
+            self._do_search(dt)
+            return
+        elif self.state == EnemyState.ALERT:
+            self.velocity.update(0, 0)
+            self._do_alert_rotate(dt)
             return
 
         delta = self.target.pos - self.pos
         dist  = delta.length()
 
         if dist > self._preferred_dist + 40:
-            self._follow_path(dt)
+            self._follow_path_to(self.target.pos, dt)
         elif dist < self._preferred_dist - 40:
-            if delta.length() > 1:
+            if dist > 1:
                 self.velocity = -delta.normalize() * self.speed
         else:
-            if delta.length() > 1:
-                perp = pygame.math.Vector2(-delta.normalize().y, delta.normalize().x)
-                self.velocity = perp * self.speed
+            if dist > 1:
+                direction = delta.normalize()
+                perp = pygame.math.Vector2(-direction.y, direction.x)
+                self.velocity = perp * self.speed * 0.6
 
         self._shoot_cooldown = max(0.0, self._shoot_cooldown - dt)
         if self._shoot_cooldown <= 0 and dist < self._preferred_dist + 120:
             self._fire()
             self._shoot_cooldown = self._shoot_rate
+
+    def _do_search(self, dt: float) -> None:
+        dist_to_last = (self.pos - self._last_known_pos).length()
+
+        if dist_to_last > 12:
+            self._follow_path_to(self._last_known_pos, dt)
+        else:
+            self.velocity.update(0, 0)
+            self._search_rotate_timer -= dt
+            self._facing_angle += self.ROTATE_SPEED * dt
+            angle_rad = math.radians(self._facing_angle)
+            self.facing = pygame.math.Vector2(math.cos(angle_rad), math.sin(angle_rad))
+            if self._search_rotate_timer <= 0:
+                self.state = EnemyState.ALERT
+                self._alert_timer        = self.ALERT_TIMEOUT
+                self._alert_react_timer  = self.ALERT_REACT_DELAY
+
+    def _do_alert_rotate(self, dt: float) -> None:
+        self._facing_angle += self.ROTATE_SPEED * 0.3 * dt
+        angle_rad = math.radians(self._facing_angle)
+        self.facing = pygame.math.Vector2(math.cos(angle_rad), math.sin(angle_rad))
+
+    def _follow_path_to(self, destination: pygame.math.Vector2, dt: float) -> None:
+        self._path_timer -= dt
+        if self._path_timer <= 0:
+            self._path_timer = self._path_interval
+            if self.pathfinder:
+                self._path = self.pathfinder.find_path(self.pos, destination)
+
+        if not self._path:
+            delta = destination - self.pos
+            if delta.length() > 1:
+                self.velocity = delta.normalize() * self.speed
+            else:
+                self.velocity.update(0, 0)
+            return
+
+        next_point = self._path[1] if len(self._path) > 1 else self._path[0]
+        delta = next_point - self.pos
+        if delta.length() < self.speed * dt + 4 and len(self._path) > 1:
+            self._path.pop(0)
+        if delta.length() > 1:
+            self.velocity = delta.normalize() * self.speed
+        else:
+            self.velocity.update(0, 0)
+
+    def _follow_path(self, dt: float) -> None:
+        self._follow_path_to(self.target.pos, dt)
 
     def _fire(self) -> None:
         if self._bullet_group is None:
@@ -218,17 +292,25 @@ class Enemy(Actor):
         self._draw_vision_cone(surface, camera_offset)
         if self._path and self.pathfinder:
             self.pathfinder.draw_debug(surface, camera_offset, self._path)
+        if self.state in (EnemyState.SEARCH, EnemyState.ALERT):
+            lkp = self._last_known_pos
+            sx  = round(lkp.x - camera_offset.x)
+            sy  = round(lkp.y - camera_offset.y)
+            pygame.draw.circle(surface, (255, 200, 50), (sx, sy), 6, 2)
+            pygame.draw.line(surface, (255, 200, 50, 120),
+                             (round(self.pos.x - camera_offset.x),
+                              round(self.pos.y - camera_offset.y)),
+                             (sx, sy), 1)
 
     def _draw_vision_cone(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         cx = round(self.pos.x - camera_offset.x)
         cy = round(self.pos.y - camera_offset.y)
 
         facing_angle = math.degrees(math.atan2(self.facing.y, self.facing.x))
-        half         = self.vision_angle / 2
-        r            = self.vision_range
-        steps        = 16
-
-        color = self.DEBUG_COLOR_CHASE if self.state == EnemyState.CHASE else self.DEBUG_COLOR_IDLE
+        half  = self.vision_angle / 2
+        r     = self.vision_range
+        steps = 16
+        color = DEBUG_COLORS.get(self.state, (80, 200, 80, 40))
 
         points = [(cx, cy)]
         for i in range(steps + 1):
@@ -248,13 +330,12 @@ class Enemy(Actor):
             pygame.draw.polygon(cone_surf, color, points)
             surface.blit(cone_surf, (0, 0))
 
-        ray_end = self.target.pos
-        blocked = self._ray_hits_wall(self.pos, self.target.pos)
-        ray_color = (255, 80, 80, 180) if blocked else (80, 255, 80, 180)
-        pygame.draw.line(surface, ray_color[:3],
+        blocked   = self._ray_hits_wall(self.pos, self.target.pos)
+        ray_color = (255, 80, 80) if blocked else (80, 255, 80)
+        pygame.draw.line(surface, ray_color,
                          (cx, cy),
-                         (round(ray_end.x - camera_offset.x),
-                          round(ray_end.y - camera_offset.y)), 1)
+                         (round(self.target.pos.x - camera_offset.x),
+                          round(self.target.pos.y - camera_offset.y)), 1)
 
     def update(self, dt: float, walls: pygame.sprite.Group = None) -> None:
         if walls is not None:
@@ -266,70 +347,51 @@ class Enemy(Actor):
             self.velocity = self._knockback_vel.copy()
         else:
             self._knockback_vel.update(0, 0)
-            self._update_state()
+            self._update_state(dt)
             self._update_facing()
             self._ai_update(dt)
         super().update(dt, walls)
 
 
-def _segment_intersects_rect(
-    p1: pygame.math.Vector2,
-    p2: pygame.math.Vector2,
-    rect: pygame.Rect,
-) -> bool:
-    left   = rect.left
-    right  = rect.right
-    top    = rect.top
-    bottom = rect.bottom
-
+def _segment_intersects_rect(p1, p2, rect) -> bool:
     edges = [
-        ((left,  top),    (right, top)),
-        ((right, top),    (right, bottom)),
-        ((right, bottom), (left,  bottom)),
-        ((left,  bottom), (left,  top)),
+        ((rect.left, rect.top),    (rect.right, rect.top)),
+        ((rect.right, rect.top),   (rect.right, rect.bottom)),
+        ((rect.right, rect.bottom),(rect.left,  rect.bottom)),
+        ((rect.left,  rect.bottom),(rect.left,  rect.top)),
     ]
     for a, b in edges:
-        if _segments_intersect(p1, p2,
-                               pygame.math.Vector2(a),
-                               pygame.math.Vector2(b)):
+        if _segments_intersect(p1, p2, pygame.math.Vector2(a), pygame.math.Vector2(b)):
             return True
     return False
 
 
-def _segments_intersect(
-    p1: pygame.math.Vector2, p2: pygame.math.Vector2,
-    p3: pygame.math.Vector2, p4: pygame.math.Vector2,
-) -> bool:
-    d1 = p2 - p1
-    d2 = p4 - p3
+def _segments_intersect(p1, p2, p3, p4) -> bool:
+    d1    = p2 - p1
+    d2    = p4 - p3
     cross = d1.x * d2.y - d1.y * d2.x
     if abs(cross) < 1e-10:
         return False
-    d3  = p3 - p1
-    t   = (d3.x * d2.y - d3.y * d2.x) / cross
-    u   = (d3.x * d1.y - d3.y * d1.x) / cross
+    d3 = p3 - p1
+    t  = (d3.x * d2.y - d3.y * d2.x) / cross
+    u  = (d3.x * d1.y - d3.y * d1.x) / cross
     return 0.0 <= t <= 1.0 and 0.0 <= u <= 1.0
 
 
-def _ray_rect_hit_point(
-    origin: pygame.math.Vector2,
-    end: pygame.math.Vector2,
-    rect: pygame.Rect,
-) -> pygame.math.Vector2 | None:
-    left, right, top, bottom = rect.left, rect.right, rect.top, rect.bottom
+def _ray_rect_hit_point(origin, end, rect):
     edges = [
-        ((left,  top),    (right, top)),
-        ((right, top),    (right, bottom)),
-        ((right, bottom), (left,  bottom)),
-        ((left,  bottom), (left,  top)),
+        ((rect.left, rect.top),    (rect.right, rect.top)),
+        ((rect.right, rect.top),   (rect.right, rect.bottom)),
+        ((rect.right, rect.bottom),(rect.left,  rect.bottom)),
+        ((rect.left,  rect.bottom),(rect.left,  rect.top)),
     ]
-    closest     = None
-    closest_t   = float("inf")
+    closest_t = float("inf")
+    closest   = None
     d1 = end - origin
     for a, b in edges:
         p3 = pygame.math.Vector2(a)
         p4 = pygame.math.Vector2(b)
-        d2 = p4 - p3
+        d2    = p4 - p3
         cross = d1.x * d2.y - d1.y * d2.x
         if abs(cross) < 1e-10:
             continue
@@ -343,8 +405,7 @@ def _ray_rect_hit_point(
 
 
 def make_grunt(pos, target, armor_class: int = 0, groups: list = ()) -> Enemy:
-    e = Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
-    return e
+    return Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
 
 
 def make_shooter(
