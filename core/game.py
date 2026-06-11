@@ -11,6 +11,7 @@ from items.consumable import make_medkit
 from items.weapon_item import WeaponItem, make_carbine, make_shotgun, make_sniper
 from items.ammo import make_ammo, AmmoType
 from combat.calculator import resolve_hit
+from actors.enemy import make_grunt, make_shooter
 
 
 class Game:
@@ -29,6 +30,7 @@ class Game:
         self.bullets     = pygame.sprite.Group()
         self.enemies     = pygame.sprite.Group()
         self.world_items = pygame.sprite.Group()
+        self.enemy_bullets = pygame.sprite.Group()
 
         self.level = Level("levels/level_1.txt", settings.grid_size)
 
@@ -63,16 +65,33 @@ class Game:
         self.weapon.equip(item if item else None)
 
     def _spawn_enemies(self) -> None:
-        spawns = [
+        grunts = [
             ((800, 400), 0),
-            ((300, 600), 0),
             ((1000, 200), 1),
-            ((500, 800), 2),
-            ((1200, 500), 3),
         ]
-        for pos, armor in spawns:
-            Enemy(pos=pos, target=self.player, armor_class=armor,
-                  groups=[self.all_sprites, self.enemies])
+        shooters = [
+            ((500, 800), 2),
+        ]
+
+        for pos, armor in grunts:
+            make_grunt(
+                pos=pos, target=self.player, armor_class=armor,
+                groups=[self.all_sprites, self.enemies],
+            )
+
+        for pos, armor in shooters:
+            make_shooter(
+                pos=pos, target=self.player, armor_class=armor,
+                groups=[self.all_sprites, self.enemies],
+                bullet_group=self.enemy_bullets,
+                all_sprites=self.all_sprites,
+            )
+    
+    def _check_enemy_bullet_hits(self) -> None:
+        for bullet in self.enemy_bullets:
+            if self.player.rect.colliderect(bullet.rect):
+                self.player.take_damage(bullet.damage)
+                bullet.kill()
 
     def _give_test_items(self) -> None:
         test_items = [
@@ -264,6 +283,7 @@ class Game:
         self.player.update(dt, self.level.walls)
         self.enemies.update(dt, self.level.walls)
         self.bullets.update(dt)
+        self.enemy_bullets.update(dt)
         self.world_items.update(dt)
         self.weapon.update(dt, self.camera.get_offset())
 
@@ -273,6 +293,7 @@ class Game:
         self._check_bullet_hits()
         self._check_bullet_wall_hits()
         self._check_contact_damage()
+        self._check_enemy_bullet_hits()
         self._update_nearby_item()
         self.camera.follow(self.player)
 
@@ -354,6 +375,8 @@ class Game:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         for sprite in [*self.bullets.sprites(), *self.enemies.sprites(), self.player]:
             self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
+        for sprite in [*self.enemy_bullets.sprites(), *self.bullets.sprites(), *self.enemies.sprites(), self.player]:
+            self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
         if self.weapon.has_weapon:
             self.screen.blit(self.weapon.image, self.camera.apply(self.weapon.rect))
 
@@ -395,6 +418,7 @@ class Game:
             f"dash cd: {p._dash_cooldown:.2f}s",
             f"bullets: {len(self.bullets)}  enemies: {len(self.enemies)}",
             f"world_items: {len(self.world_items)}",
+            f"enemy_bullets: {len(self.enemy_bullets)}",
         ]
         for i, line in enumerate(lines):
             surf = font.render(line, True, (180, 220, 180))
