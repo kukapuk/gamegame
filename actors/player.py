@@ -4,14 +4,13 @@ from items.stats import Stats
 from items.inventory import Inventory
 from items.item import ItemType
 from core.settings import Settings
-from items.armor import Armor
 
 
 class Player(Actor):
     """
     Human-controlled actor.
-    Движение WASD, dash по Space в направлении движения.
-    Характеристики (скорость, dash) берутся из self.stats — меняй Stats при смене брони.
+    Движение WASD, Shift — бег, Space — dash.
+    Все характеристики берутся из self.stats — меняются при смене брони.
     """
 
     def __init__(self, pos: tuple[float, float], settings: Settings, groups: list = ()) -> None:
@@ -33,6 +32,7 @@ class Player(Actor):
         self._dash_timer: float = 0.0
         self._dash_velocity = pygame.math.Vector2(0, 0)
         self._is_dashing: bool = False
+        self.is_sprinting: bool = False
 
         self.pouch = Inventory(
             capacity=4,
@@ -40,7 +40,6 @@ class Player(Actor):
             owner=self,
         )
         self.backpack = Inventory(capacity=16)
-
         self.active_weapon_slot: int = 0
 
     def get_active_weapon(self):
@@ -51,6 +50,7 @@ class Player(Actor):
         return slot.item if not slot.empty else None
 
     def get_armor_class(self) -> int:
+        from items.armor import Armor
         armor_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.ARMOR]
         if armor_slots and not armor_slots[0].empty:
             item = armor_slots[0].item
@@ -72,9 +72,7 @@ class Player(Actor):
             return
         if self.stamina < self.stats.dash_stamina_cost:
             return
-
         direction = self._move_dir if self._move_dir.length() > 0 else self.facing
-
         self.stamina -= self.stats.dash_stamina_cost
         self._is_dashing = True
         self._dash_timer = self.stats.dash_duration
@@ -100,12 +98,22 @@ class Player(Actor):
 
         self._move_dir = direction
 
+        shift_held = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+        self.is_sprinting = (
+            shift_held
+            and direction.length() > 0
+            and not self._is_dashing
+            and self.stamina > 0
+        )
+
         if not self._is_dashing:
-            self.velocity = direction * self.speed
+            if self.is_sprinting:
+                self.velocity = direction * self.speed * self.stats.sprint_multiplier
+            else:
+                self.velocity = direction * self.speed
 
     def _update_dash(self, dt: float) -> None:
         self._dash_cooldown = max(0.0, self._dash_cooldown - dt)
-
         if self._is_dashing:
             self._dash_timer -= dt
             self.velocity = self._dash_velocity
@@ -114,7 +122,11 @@ class Player(Actor):
                 self.velocity = self._move_dir * self.speed
 
     def _update_stamina(self, dt: float) -> None:
-        if not self._is_dashing:
+        if self._is_dashing:
+            return
+        if self.is_sprinting:
+            self.stamina = max(0.0, self.stamina - self.stats.sprint_stamina_drain * dt)
+        else:
             self.stamina = min(
                 self.stats.max_stamina,
                 self.stamina + self.stats.stamina_regen * dt,

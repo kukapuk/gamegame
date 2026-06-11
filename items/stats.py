@@ -18,3 +18,6 @@ class Stats:
     max_stamina: float = 100.0
     stamina_regen: float = 20.0
     dash_stamina_cost: float = 25.0
+
+    sprint_multiplier: float = 1.6
+    sprint_stamina_drain: float = 15.0
