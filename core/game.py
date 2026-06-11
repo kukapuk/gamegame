@@ -51,7 +51,7 @@ class Game:
 
         self.camera = Camera(settings)
         self.hud    = HUD(settings, self.player)
-        self.debug  = False
+        self.debug  = True
 
         self._i_held_time: float     = 0.0
         self._i_triggered: bool      = False
@@ -325,6 +325,7 @@ class Game:
 
     def _check_bullet_wall_hits(self) -> None:
         pygame.sprite.groupcollide(self.bullets, self.level.walls, True, False)
+        pygame.sprite.groupcollide(self.enemy_bullets, self.level.walls, True, False)
 
     def _check_contact_damage(self) -> None:
         s           = self.settings
@@ -423,4 +424,6 @@ class Game:
         for i, line in enumerate(lines):
             surf = font.render(line, True, (180, 220, 180))
             self.screen.blit(surf, (10, 10 + i * 20))
+        for enemy in self.enemies:
+            enemy.draw_debug(self.screen, self.camera.get_offset())
         p.draw_debug(self.screen, self.camera.get_offset())
