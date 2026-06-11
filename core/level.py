@@ -13,6 +13,8 @@ class Level:
         self.walls       = pygame.sprite.Group()
         self.all_sprites = pygame.sprite.Group()
         self.player_spawn: tuple[int, int] = (0, 0)
+        self.cols: int = 0
+        self.rows: int = 0
         self._load(path)
 
     def _load(self, path: str) -> None:
@@ -20,6 +22,9 @@ class Level:
             lines = f.readlines()
 
         ts = self.tile_size
+        self.rows = len(lines)
+        self.cols = max(len(line.rstrip("\n")) for line in lines)
+
         for row, line in enumerate(lines):
             for col, char in enumerate(line):
                 x = col * ts

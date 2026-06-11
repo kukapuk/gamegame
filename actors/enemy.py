@@ -59,6 +59,11 @@ class Enemy(Actor):
         self.state      = EnemyState.IDLE
         self._ai_update = self._ai_grunt
 
+        self._path: list      = []
+        self._path_timer: float = 0.0
+        self._path_interval: float = 0.4
+        self.pathfinder       = None
+
         self.can_shoot: bool        = False
         self._shoot_cooldown: float = 0.0
         self._shoot_rate: float     = 0.0
@@ -128,7 +133,33 @@ class Enemy(Actor):
         if self.state == EnemyState.IDLE:
             self.velocity.update(0, 0)
             return
-        delta = self.target.pos - self.pos
+        self._follow_path(dt)
+
+    def _follow_path(self, dt: float) -> None:
+        self._path_timer -= dt
+        if self._path_timer <= 0:
+            self._path_timer = self._path_interval
+            if self.pathfinder:
+                self._path = self.pathfinder.find_path(self.pos, self.target.pos)
+
+        if not self._path:
+            delta = self.target.pos - self.pos
+            if delta.length() > 1:
+                self.velocity = delta.normalize() * self.speed
+            else:
+                self.velocity.update(0, 0)
+            return
+
+        if len(self._path) > 1:
+            next_point = self._path[1]
+        else:
+            next_point = self._path[0]
+
+        delta = next_point - self.pos
+        if delta.length() < self.speed * dt + 4:
+            if len(self._path) > 1:
+                self._path.pop(0)
+
         if delta.length() > 1:
             self.velocity = delta.normalize() * self.speed
         else:
@@ -142,14 +173,14 @@ class Enemy(Actor):
         delta = self.target.pos - self.pos
         dist  = delta.length()
 
-        if dist > 1:
-            direction = delta.normalize()
-            if dist > self._preferred_dist + 40:
-                self.velocity = direction * self.speed
-            elif dist < self._preferred_dist - 40:
-                self.velocity = -direction * self.speed
-            else:
-                perp = pygame.math.Vector2(-direction.y, direction.x)
+        if dist > self._preferred_dist + 40:
+            self._follow_path(dt)
+        elif dist < self._preferred_dist - 40:
+            if delta.length() > 1:
+                self.velocity = -delta.normalize() * self.speed
+        else:
+            if delta.length() > 1:
+                perp = pygame.math.Vector2(-delta.normalize().y, delta.normalize().x)
                 self.velocity = perp * self.speed
 
         self._shoot_cooldown = max(0.0, self._shoot_cooldown - dt)
@@ -185,6 +216,8 @@ class Enemy(Actor):
     def draw_debug(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         super().draw_debug(surface, camera_offset)
         self._draw_vision_cone(surface, camera_offset)
+        if self._path and self.pathfinder:
+            self.pathfinder.draw_debug(surface, camera_offset, self._path)
 
     def _draw_vision_cone(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         cx = round(self.pos.x - camera_offset.x)

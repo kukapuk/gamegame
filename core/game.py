@@ -13,6 +13,7 @@ from items.ammo import make_ammo, AmmoType
 from combat.calculator import resolve_hit
 from actors.enemy import make_grunt, make_shooter
 from core.audio import AudioManager
+from core.pathfinder import Pathfinder
 
 
 class Game:
@@ -37,6 +38,11 @@ class Game:
 
         spawn = self.level.player_spawn
         self.player = Player(spawn, settings, groups=[self.all_sprites])
+
+        self.pathfinder = Pathfinder(settings.grid_size)
+        self.pathfinder.build_from_walls(
+            self.level.walls, self.level.cols, self.level.rows
+        )
 
         self.weapon = Weapon(
             owner=self.player,
@@ -76,18 +82,20 @@ class Game:
         ]
 
         for pos, armor in grunts:
-            make_grunt(
+            e = make_grunt(
                 pos=pos, target=self.player, armor_class=armor,
                 groups=[self.all_sprites, self.enemies],
             )
+            e.pathfinder = self.pathfinder
 
         for pos, armor in shooters:
-            make_shooter(
+            e = make_shooter(
                 pos=pos, target=self.player, armor_class=armor,
                 groups=[self.all_sprites, self.enemies],
                 bullet_group=self.enemy_bullets,
                 all_sprites=self.all_sprites,
             )
+            e.pathfinder = self.pathfinder
     
     def _check_enemy_bullet_hits(self) -> None:
         for bullet in self.enemy_bullets:
