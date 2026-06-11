@@ -8,11 +8,11 @@ from core.pathfinder import Pathfinder
 from core.save_manager import SaveManager
 from core.dialog_manager import DialogManager
 from core.loot_manager import LootManager
+from core.combat_manager import CombatManager
 from actors.player import Player
 from actors.enemy import make_grunt, make_shooter
 from actors.npc import NPC
 from combat.weapon import Weapon
-from combat.calculator import resolve_hit
 from items.world_item import WorldItem
 from items.consumable import make_medkit
 from items.weapon_item import make_carbine, make_shotgun, make_sniper
@@ -51,7 +51,8 @@ class Game:
             all_sprites=self.all_sprites,
         )
 
-        self.loot = LootManager(self.world_items)
+        self.loot   = LootManager(self.world_items)
+        self.combat = CombatManager(settings)
 
         self._spawn_from_level()
         self._give_test_items()
@@ -295,10 +296,11 @@ class Game:
                           else self.settings.gunshot_sound_radius)
                 self.audio.play_at("gunshot", self.player.pos, radius)
 
-        self._check_bullet_hits()
-        self._check_bullet_wall_hits()
-        self._check_contact_damage()
-        self._check_enemy_bullet_hits()
+        self.combat.update(
+            self.player, self.enemies,
+            self.bullets, self.enemy_bullets,
+            self.level.walls,
+        )
         self._update_nearby_npc()
         self.camera.follow(self.player)
 
@@ -309,54 +311,6 @@ class Game:
         for ev in self.audio.get_sound_events():
             for enemy in self.enemies:
                 enemy.hear_sound(ev["pos"], ev["radius"])
-
-    def _check_bullet_hits(self) -> None:
-        active    = self.player.get_active_weapon()
-        armor_pen = active.stats.armor_pen if active else 0
-        hits      = pygame.sprite.groupcollide(self.enemies, self.bullets, False, True)
-        for enemy, bullet_list in hits.items():
-            for bullet in bullet_list:
-                damage, se = resolve_hit(
-                    base_damage=bullet.damage,
-                    base_se=bullet.stopping_effect,
-                    armor_pen=armor_pen,
-                    armor_class=enemy.armor_class,
-                    settings=self.settings,
-                )
-                enemy.take_damage(damage)
-                if se > 0 and bullet.velocity.length() > 0:
-                    enemy.apply_stopping_effect(bullet.velocity, se)
-
-    def _check_bullet_wall_hits(self) -> None:
-        pygame.sprite.groupcollide(self.bullets,       self.level.walls, True, False)
-        pygame.sprite.groupcollide(self.enemy_bullets, self.level.walls, True, False)
-
-    def _check_contact_damage(self) -> None:
-        s           = self.settings
-        armor_class = self.player.get_armor_class()
-        for enemy in self.enemies:
-            damage, _ = resolve_hit(
-                base_damage=s.enemy_contact_damage,
-                base_se=0.0,
-                armor_pen=0,
-                armor_class=armor_class,
-                settings=s,
-            )
-            enemy.try_deal_contact_damage(self.player, damage, s.enemy_contact_cooldown)
-
-    def _check_enemy_bullet_hits(self) -> None:
-        armor_class = self.player.get_armor_class()
-        for bullet in self.enemy_bullets:
-            if self.player.rect.colliderect(bullet.rect):
-                damage, _ = resolve_hit(
-                    base_damage=bullet.damage,
-                    base_se=0.0,
-                    armor_pen=0,
-                    armor_class=armor_class,
-                    settings=self.settings,
-                )
-                self.player.take_damage(damage)
-                bullet.kill()
 
     def _update_nearby_npc(self) -> None:
         self._nearby_npc = None
@@ -389,6 +343,7 @@ class Game:
         self.hud    = HUD(self.settings, self.player)
         self.camera = Camera(self.settings)
         self.loot   = LootManager(self.world_items)
+        self.combat = CombatManager(self.settings)
 
         self._spawn_from_level()
         self._give_test_items()
