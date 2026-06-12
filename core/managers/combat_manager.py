@@ -102,7 +102,8 @@ class CombatManager:
                                           self.s.enemy_contact_cooldown)
 
     def _check_enemy_bullet_hits(self, player, enemy_bullets) -> None:
-        armor_class = player.get_armor_class()
+        armor_class  = player.get_armor_class()
+        helmet_class = player.get_helmet_class()
         for bullet in list(enemy_bullets):
             hit_head = player.head_rect.colliderect(bullet.rect)
             hit_body = player.body_rect.colliderect(bullet.rect)
@@ -116,24 +117,39 @@ class CombatManager:
                 hit_head_hitbox = hit_head,
                 settings        = self.s,
             )
-            player.take_damage(result.damage)
             player.last_hit_zone = result.zone
 
-            if result.penetrated:
-                if result.zone == HitZone.ARMS:
-                    # дебафф конечностей только если броня не защищает их
-                    if not _armor_protects_limbs(player):
-                        player.apply_arms_debuff()
-                elif result.zone == HitZone.LEGS:
-                    if not _armor_protects_limbs(player):
-                        player.apply_legs_debuff()
+            if result.zone == HitZone.HEAD:
+                if helmet_class == 0:
+                    # нет шлема — instant kill
+                    player.take_damage(player.hp)
+                elif not result.penetrated:
+                    # шлем не пробит — обычный урон без x2.5
+                    base_dmg = int(result.damage / 2.5)
+                    helmet_mult = max(0.1, 1.0 - helmet_class * 0.25)
+                    player.take_damage(int(base_dmg * helmet_mult * 16))
+                else:
+                    # шлем пробит — большой урон но не смертельный
+                    helmet_mult = max(0.1, 1.0 - helmet_class * 0.25)
+                    damage = int(result.damage * helmet_mult * 16)
+                    player.take_damage(min(damage, player.hp - 1))
+            else:
+                player.take_damage(result.damage)
 
-                bleed_chance = {
-                    HitZone.TORSO: 0.20,
-                    HitZone.ARMS:  0.40,
-                    HitZone.LEGS:  0.40,
-                }.get(result.zone, 0.0)
-                if bleed_chance > 0 and random.random() < bleed_chance:
-                    player.apply_bleeding()
+                if result.penetrated:
+                    if result.zone == HitZone.ARMS:
+                        if not _armor_protects_limbs(player):
+                            player.apply_arms_debuff()
+                    elif result.zone == HitZone.LEGS:
+                        if not _armor_protects_limbs(player):
+                            player.apply_legs_debuff()
+
+                    bleed_chance = {
+                        HitZone.TORSO: 0.20,
+                        HitZone.ARMS:  0.40,
+                        HitZone.LEGS:  0.40,
+                    }.get(result.zone, 0.0)
+                    if bleed_chance > 0 and random.random() < bleed_chance:
+                        player.apply_bleeding()
 
             bullet.kill()

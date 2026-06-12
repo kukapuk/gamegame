@@ -488,7 +488,7 @@ def make_shooter(
     e._shoot_cooldown   = 1.2
     e._preferred_dist   = 220.0
     e._bullet_speed     = 380.0
-    e._bullet_damage    = 8
+    e._bullet_damage    = 30
     e._bullet_color     = (220, 100, 255)
     e._bullet_group     = bullet_group
     e._all_sprites      = all_sprites
