@@ -174,10 +174,8 @@ class HUD:
                 if (isinstance(drag_item, CleaningKit)
                         and isinstance(target_item, WeaponItem)):
                     drag_item.apply_to_weapon(target_item)
-                    # возвращаем kit обратно в источник (он не расходуется полностью
-                    # — можно сделать расходуемым, убрав эту строку)
-                    if self._drag.source_slot:
-                        self._drag.source_slot.item = drag_item
+                    if self._drag.source_world_item:
+                        result["kill_world_item"] = self._drag.source_world_item
                     self._drag = None
                     return result
 
