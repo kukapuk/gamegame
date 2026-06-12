@@ -87,7 +87,7 @@ class LevelLoader:
         return Player(spawn, self.s, groups=[self.all_sprites])
 
     def _get_spawn(self, path: str) -> tuple:
-        from core.level import Level
+        from core.level.level import Level
         return Level(path, self.s.grid_size).player_spawn
 
     def _setup_weapon(self, player):

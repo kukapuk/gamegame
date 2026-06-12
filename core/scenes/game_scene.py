@@ -1,13 +1,13 @@
 import pygame
 from core.settings import Settings
-from core.audio import AudioManager
+from core.audio.audio import AudioManager
 from core.managers.save_manager import SaveManager
 from core.managers.dialog_manager import DialogManager
 from core.managers.loot_manager import LootManager
 from core.managers.combat_manager import CombatManager
 from core.managers.world_manager import WorldManager
 from core.managers.spawn_manager import SpawnManager
-from core.level_loader import LevelLoader
+from core.level.level_loader import LevelLoader
 from core.renderer import Renderer
 from core.input_handler import InputHandler
 
