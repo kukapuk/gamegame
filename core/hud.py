@@ -433,13 +433,16 @@ class HUD:
                 screen.blit(lbl, (rect.right - lbl.get_width() - 2, rect.bottom - lbl.get_height() - 1))
 
     def _draw_pouch_panel(self, screen: pygame.Surface) -> None:
-        weapon_w  = 56
-        weapon_h  = 28
-        armor_sz  = 64
-        inner_pad = 10
+        weapon_w  = 28
+        weapon_h  = 56   # вертикальный слот оружия
+        helmet_sz = 36
+        armor_sz  = 56
+        inner_pad = 8
         pad       = self.SLOT_PAD
+
+        equip_h   = helmet_sz + pad + armor_sz
         panel_w   = weapon_w + inner_pad + armor_sz + inner_pad + weapon_w + inner_pad * 2
-        panel_h   = armor_sz + inner_pad * 2
+        panel_h   = equip_h + inner_pad * 2
         ox        = self.MARGIN
         oy        = self._bar_baseline() - self.s.player_hp_bar_height - panel_h - 16
 
@@ -451,23 +454,40 @@ class HUD:
         typed_slots  = self.player.pouch.typed_slots
         weapon_slots = [s for s in typed_slots if s.allowed_type == ItemType.WEAPON]
         armor_slots  = [s for s in typed_slots if s.allowed_type == ItemType.ARMOR]
+        helmet_slots = [s for s in typed_slots if s.allowed_type == ItemType.HELMET]
 
         self._pouch_panel_slot_rects = []
-        cx = ox + inner_pad
 
-        for i, slot in enumerate(weapon_slots):
-            r = pygame.Rect(cx, oy + inner_pad + i * (weapon_h + pad), weapon_w, weapon_h)
-            self._pouch_panel_slot_rects.append((slot, r))
-            self._draw_slot(screen, slot, r, typed=True)
-            lbl = self.font_sm.render("WEAPON", True, (70, 90, 150))
+        cy_center = oy + inner_pad + (equip_h - weapon_h) // 2
+
+        # оружие 1 — слева
+        if len(weapon_slots) > 0:
+            r = pygame.Rect(ox + inner_pad, cy_center, weapon_w, weapon_h)
+            self._pouch_panel_slot_rects.append((weapon_slots[0], r))
+            self._draw_slot(screen, weapon_slots[0], r, typed=True, rotate_icon=True)
+            lbl = self.font_sm.render("W1", True, (70, 90, 150))
             screen.blit(lbl, (r.x + 3, r.y + 3))
 
-        cx += weapon_w + inner_pad
-        for slot in armor_slots:
-            r = pygame.Rect(cx, oy + inner_pad, armor_sz, armor_sz)
+        cx = ox + inner_pad + weapon_w + inner_pad
+        for i, (slot, label, sz, color) in enumerate([
+            *[(s, "HELM", helmet_sz, (80, 140, 80))  for s in helmet_slots],
+            *[(s, "ARMOR", armor_sz, (70, 90, 150))  for s in armor_slots],
+        ]):
+            ry  = oy + inner_pad + (helmet_sz + pad) * i
+            # шлем центрируем горизонтально относительно брони
+            offset_x = (armor_sz - sz) // 2
+            r   = pygame.Rect(cx + offset_x, ry, sz, sz)
             self._pouch_panel_slot_rects.append((slot, r))
             self._draw_slot(screen, slot, r, typed=True)
-            lbl = self.font_sm.render("ARMOR", True, (70, 90, 150))
+            lbl = self.font_sm.render(label, True, color)
+            screen.blit(lbl, (r.x + 3, r.y + 3))
+
+        # оружие 2 — справа
+        if len(weapon_slots) > 1:
+            r = pygame.Rect(cx + armor_sz + inner_pad, cy_center, weapon_w, weapon_h)
+            self._pouch_panel_slot_rects.append((weapon_slots[1], r))
+            self._draw_slot(screen, weapon_slots[1], r, typed=True, rotate_icon=True)
+            lbl = self.font_sm.render("W2", True, (70, 90, 150))
             screen.blit(lbl, (r.x + 3, r.y + 3))
 
     def _draw_backpack(self, screen: pygame.Surface) -> None:
@@ -526,13 +546,19 @@ class HUD:
         screen.blit(bg,   (pos[0] + 12, pos[1] - bg.get_height()))
         screen.blit(surf, (pos[0] + 12 + pad, pos[1] - bg.get_height() + pad))
 
-    def _draw_slot(self, screen: pygame.Surface, slot: Slot, rect: pygame.Rect, typed: bool = False) -> None:
+    def _draw_slot(self, screen, slot, rect, typed=False, rotate_icon=False):
         bg     = self.SLOT_HOVER if rect == self._hovered_rect else (self.SLOT_TYPED_BG if typed else self.SLOT_BG)
         border = self.SLOT_TYPED_BORDER if typed else self.SLOT_BORDER
         pygame.draw.rect(screen, bg,     rect)
         pygame.draw.rect(screen, border, rect, 1)
         if slot and not slot.empty:
-            icon = pygame.transform.scale(slot.item.icon, (rect.width - 4, rect.height - 4))
+            if rotate_icon:
+                # масштабируем по меньшей стороне чтобы после поворота влезло
+                side = min(rect.width, rect.height) - 4
+                icon = pygame.transform.scale(slot.item.icon, (side, side))
+                icon = pygame.transform.rotate(icon, 90)
+            else:
+                icon = pygame.transform.scale(slot.item.icon, (rect.width - 4, rect.height - 4))
             screen.blit(icon, icon.get_rect(center=rect.center))
             self._draw_weapon_condition(screen, slot.item, rect)
 

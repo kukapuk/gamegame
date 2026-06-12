@@ -47,3 +47,36 @@ class Armor(Item):
 def make_light_armor()  -> "Armor": return Armor(tier=1)
 def make_medium_armor() -> "Armor": return Armor(tier=2)
 def make_heavy_armor()  -> "Armor": return Armor(tier=3)
+
+
+# ------------------------------------------------------------------ #
+# Шлемы
+# ------------------------------------------------------------------ #
+
+HELMET_NAMES  = ["No Helmet", "Light Helmet", "Medium Helmet", "Heavy Helmet"]
+HELMET_COLORS = [(120, 120, 130), (80, 160, 100), (60, 100, 180), (140, 60, 60)]
+
+
+class Helmet(Item):
+    """
+    Шлем. Защищает голову — снижает шанс headshot-смерти.
+    Tier 1-3 аналогично броне.
+    Tier 0 — без шлема (headshot = instant kill).
+    """
+
+    def __init__(self, tier: int) -> None:
+        tier = max(0, min(3, tier))
+        super().__init__(
+            name=HELMET_NAMES[tier],
+            item_type=ItemType.HELMET,
+            icon_color=HELMET_COLORS[tier],
+        )
+        self.tier = tier
+
+    def get_tooltip(self) -> str:
+        return f"{self.name}  tier: {self.tier}"
+
+
+def make_light_helmet()  -> "Helmet": return Helmet(tier=1)
+def make_medium_helmet() -> "Helmet": return Helmet(tier=2)
+def make_heavy_helmet()  -> "Helmet": return Helmet(tier=3)

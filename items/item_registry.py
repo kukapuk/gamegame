@@ -1,5 +1,6 @@
 from items.consumable import make_medkit, make_bandage, make_surgical_kit
-from items.armor import make_light_armor, make_medium_armor, make_heavy_armor, Armor
+from items.armor import make_light_armor, make_medium_armor, make_heavy_armor, Armor, \
+                        make_light_helmet, make_medium_helmet, make_heavy_helmet, Helmet
 from items.ammo import make_ammo, AmmoType
 from items.cleaning_kit import make_cleaning_kit
 
@@ -13,6 +14,9 @@ REGISTRY: dict = {
     "armor_1":         lambda: make_light_armor(),
     "armor_2":         lambda: make_medium_armor(),
     "armor_3":         lambda: make_heavy_armor(),
+    "helmet_1":        lambda: make_light_helmet(),
+    "helmet_2":        lambda: make_medium_helmet(),
+    "helmet_3":        lambda: make_heavy_helmet(),
     "ammo_carbine":    lambda count=1: make_ammo(AmmoType.CARBINE, count),
     "ammo_shotgun":    lambda count=1: make_ammo(AmmoType.SHOTGUN, count),
     "ammo_sniper":     lambda count=1: make_ammo(AmmoType.SNIPER,  count),
@@ -50,6 +54,8 @@ def serialize_item(item) -> dict | None:
         return {"type": "cleaning_kit", "heal": item.heal_amount}
     if isinstance(item, Armor):
         return {"type": "armor", "tier": item.tier}
+    if isinstance(item, Helmet):
+        return {"type": "helmet", "tier": item.tier}
     if isinstance(item, AmmoItem):
         return {"type": "ammo", "ammo_type": item.ammo_type.name, "count": item.stack_count}
     if isinstance(item, WeaponItem):
@@ -71,6 +77,8 @@ def deserialize_item(data: dict):
         return make_cleaning_kit(data.get("heal", 0.5))
     if t == "armor":
         return Armor(tier=data.get("tier", 0))
+    if t == "helmet":
+        return Helmet(tier=data.get("tier", 1))
     if t == "ammo":
         ammo_type = AmmoType[data["ammo_type"]]
         return make_ammo(ammo_type, data.get("count", 1))

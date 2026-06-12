@@ -7,6 +7,7 @@ class ItemType(Enum):
     AMMO       = auto()
     WEAPON     = auto()
     ARMOR      = auto()
+    HELMET     = auto()
 
 
 class Item:

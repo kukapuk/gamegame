@@ -64,8 +64,8 @@ class Player(Actor):
         self.use_time_total: float   = 0.0
 
         self.pouch = Inventory(
-            capacity=4,
-            typed_slots=[ItemType.WEAPON, ItemType.WEAPON, ItemType.ARMOR],
+            capacity=5,
+            typed_slots=[ItemType.WEAPON, ItemType.WEAPON, ItemType.HELMET, ItemType.ARMOR],
             owner=self,
         )
         self.backpack = Inventory(capacity=16)
@@ -140,6 +140,15 @@ class Player(Actor):
         if armor_slots and not armor_slots[0].empty:
             item = armor_slots[0].item
             if isinstance(item, Armor):
+                return item.tier
+        return 0
+
+    def get_helmet_class(self) -> int:
+        from items.armor import Helmet
+        helmet_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.HELMET]
+        if helmet_slots and not helmet_slots[0].empty:
+            item = helmet_slots[0].item
+            if isinstance(item, Helmet):
                 return item.tier
         return 0
 
