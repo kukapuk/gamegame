@@ -9,6 +9,7 @@ from core.loot_manager import LootManager
 from core.combat_manager import CombatManager
 from core.world_manager import WorldManager
 from core.renderer import Renderer
+from core.input_handler import InputHandler
 from actors.player import Player
 from combat.weapon import Weapon
 from items.consumable import make_medkit
@@ -57,10 +58,8 @@ class Game:
         self.debug       = False
         self.player_dead = False
 
-        self._i_held_time: float = 0.0
-        self._i_triggered: bool  = False
-
-        self.renderer = Renderer(settings, self.clock)
+        self.renderer      = Renderer(settings, self.clock)
+        self.input_handler = InputHandler(settings)
 
     # Level loading
 
@@ -141,111 +140,94 @@ class Game:
 
     def run(self) -> None:
         while self.running:
-            dt = self.clock.tick(self.settings.fps) / 1000.0
-            self._handle_i_hold(dt)
-            self._handle_events()
+            dt  = self.clock.tick(self.settings.fps) / 1000.0
+            inp = self.input_handler.process(
+                dt,
+                player_dead   = self.player_dead,
+                dialog_active = self.dialog.active,
+                hud_open      = self.hud.is_open(),
+            )
+            self._apply_input(inp)
             if not self.player_dead:
                 self._update(dt)
-            self._draw()
+            self._draw(inp.i_hold_progress)
 
-    # Events
+    # Input
 
-    def _handle_i_hold(self, dt: float) -> None:
-        if self.dialog.active:
+    def _apply_input(self, inp) -> None:
+        if inp.quit:
+            self.running = False
             return
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_i]:
-            self._i_held_time += dt
-            if self._i_held_time >= self.settings.backpack_hold_time and not self._i_triggered:
-                self._i_triggered = True
-                if self.hud.is_open():
-                    self.hud.close_backpack()
-                else:
-                    self.hud.open_backpack()
-        else:
-            self._i_held_time = 0.0
-            self._i_triggered = False
-
-    def _handle_events(self) -> None:
-        if self.player_dead:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
-                elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                    self._restart()
+        if inp.restart:
+            self._restart()
             return
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.running = False
+        # hold-рюкзак
+        if getattr(inp, "toggle_backpack", False):
+            if self.hud.is_open():
+                self.hud.close_backpack()
+            else:
+                self.hud.open_backpack()
 
-            elif event.type == pygame.KEYDOWN:
-                if self.dialog.active:
-                    self.dialog.handle_key(event.key)
-                    return
+        if inp.toggle_debug:
+            self.debug = not self.debug
+        if inp.toggle_pouch:
+            self.hud.toggle_pouch()
 
-                if event.key == pygame.K_ESCAPE:
-                    self.running = False
-                elif event.key == pygame.K_1:
-                    self.player.switch_weapon(0)
-                    self._sync_weapon()
-                elif event.key == pygame.K_2:
-                    self.player.switch_weapon(1)
-                    self._sync_weapon()
-                elif event.key == pygame.K_TAB:
-                    self.hud.toggle_pouch()
-                elif event.key == pygame.K_F1:
-                    self.debug = not self.debug
-                elif event.key == pygame.K_SPACE:
-                    self.player.try_dash()
-                elif event.key == pygame.K_r:
-                    self.weapon.try_reload()
-                elif event.key == pygame.K_e:
-                    nearby_npc = self.world.get_nearby_npc()
-                    pending    = self.world.get_pending_level()
-                    if nearby_npc and nearby_npc.dialog_file:
-                        self.dialog.start(nearby_npc.dialog_file)
-                    elif pending:
-                        self._transition_level(pending)
-                    else:
-                        self.loot.try_pickup(self.player, self._sync_weapon)
-                elif event.key == pygame.K_g:
-                    self.loot.try_drop(self.player, self._sync_weapon)
-                elif event.key == pygame.K_F5:
-                    self.save_manager.save(self)
-                elif event.key == pygame.K_F9:
-                    self.save_manager.load(self)
-                else:
-                    if not self.hud.is_open():
-                        typed_count = len(self.player.pouch.typed_slots)
-                        for i, key in enumerate(self.settings.pouch_hotkeys):
-                            if event.key == key:
-                                self.player.pouch.use_slot(typed_count + i, self.player)
+        # диалог
+        if inp.dialog_key != -1:
+            self.dialog.handle_key(inp.dialog_key)
+            return
 
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    grabbed = self.hud.handle_world_mouse_down(
-                        event.pos, self.world_items, self.camera.get_offset()
-                    )
-                    if not grabbed:
-                        self.hud.handle_mouse_down(event.pos)
+        # геймплей
+        if inp.switch_weapon != -1:
+            self.player.switch_weapon(inp.switch_weapon)
+            self._sync_weapon()
+        if inp.dash:
+            self.player.try_dash()
+        if inp.reload:
+            self.weapon.try_reload()
+        if inp.interact:
+            nearby_npc = self.world.get_nearby_npc()
+            pending    = self.world.get_pending_level()
+            if nearby_npc and nearby_npc.dialog_file:
+                self.dialog.start(nearby_npc.dialog_file)
+            elif pending:
+                self._transition_level(pending)
+            else:
+                self.loot.try_pickup(self.player, self._sync_weapon)
+        if inp.drop_weapon:
+            self.loot.try_drop(self.player, self._sync_weapon)
+        if inp.save:
+            self.save_manager.save(self)
+        if inp.load:
+            self.save_manager.load(self)
+        if inp.use_pouch_slot != -1:
+            typed_count = len(self.player.pouch.typed_slots)
+            self.player.pouch.use_slot(typed_count + inp.use_pouch_slot, self.player)
 
-            elif event.type == pygame.MOUSEBUTTONUP:
-                if event.button == 1:
-                    result = self.hud.handle_mouse_up(event.pos)
-                    if result["kill_world_item"]:
-                        result["kill_world_item"].kill()
-                    if result["drop_item"]:
-                        drop_pos = (
-                            self.player.pos.x + self.player.facing.x * 48,
-                            self.player.pos.y + self.player.facing.y * 48,
-                        )
-                        self.loot.spawn(result["drop_item"], drop_pos)
-                    self._sync_weapon()
-
-            elif event.type == pygame.MOUSEMOTION:
-                self.hud.handle_mouse_motion(event.pos)
-                self.hud.update_world_hover(event.pos, self.world_items, self.camera.get_offset())
+        # мышь
+        if inp.lmb_down:
+            grabbed = self.hud.handle_world_mouse_down(
+                pygame.mouse.get_pos(), self.world_items, self.camera.get_offset()
+            )
+            if not grabbed:
+                self.hud.handle_mouse_down(pygame.mouse.get_pos())
+        if inp.lmb_up:
+            result = self.hud.handle_mouse_up(pygame.mouse.get_pos())
+            if result["kill_world_item"]:
+                result["kill_world_item"].kill()
+            if result["drop_item"]:
+                drop_pos = (
+                    self.player.pos.x + self.player.facing.x * 48,
+                    self.player.pos.y + self.player.facing.y * 48,
+                )
+                self.loot.spawn(result["drop_item"], drop_pos)
+            self._sync_weapon()
+        if inp.mouse_motion:
+            pos = pygame.mouse.get_pos()
+            self.hud.handle_mouse_motion(pos)
+            self.hud.update_world_hover(pos, self.world_items, self.camera.get_offset())
 
     # Update
 
@@ -301,7 +283,7 @@ class Game:
 
     # Draw
 
-    def _draw(self) -> None:
+    def _draw(self, i_hold_progress: float = 0.0) -> None:
         self.renderer.draw(
             self.screen,
             level          = self.world.level,
@@ -319,7 +301,7 @@ class Game:
             dialog_manager = self.dialog,
             save_manager   = self.save_manager,
             audio_manager  = self.audio,
-            i_hold_progress = self._i_held_time / self.settings.backpack_hold_time,
+            i_hold_progress = i_hold_progress,
             player_dead    = self.player_dead,
             debug          = self.debug,
         )
