@@ -41,6 +41,7 @@ class GameScene:
         self.world_items   = pygame.sprite.Group()
         self.enemy_bullets = pygame.sprite.Group()
         self.npcs          = pygame.sprite.Group()
+        self.blood_drops   = pygame.sprite.Group()
 
         # Системы
         self.loot         = LootManager(self.world_items)
@@ -88,7 +89,12 @@ class GameScene:
         self.player, self.weapon, self.camera, self.hud = \
             self.level_loader.load(self.FIRST_LEVEL)
 
-    # App interface
+        self._assign_blood_group()
+
+    def _assign_blood_group(self) -> None:
+        self.player._blood_group = self.blood_drops
+        for enemy in self.enemies:
+            enemy._blood_group = self.blood_drops
 
     def update(self, dt: float) -> str:
         """
@@ -129,6 +135,7 @@ class GameScene:
             dialog_manager  = self.dialog,
             save_manager    = self.save_manager,
             audio_manager   = self.audio,
+            blood_drops     = self.blood_drops,
             i_hold_progress = i_hold_progress,
             player_dead     = self.player_dead,
             debug           = self.debug,
@@ -229,6 +236,7 @@ class GameScene:
         self.bullets.update(dt)
         self.enemy_bullets.update(dt)
         self.world_items.update(dt)
+        self.blood_drops.update(dt)
         self.weapon.update(dt, self.camera.get_offset(), self.hud.is_open())
         self.audio.update(dt)
         self.loot.update(self.player)
@@ -275,11 +283,14 @@ class GameScene:
         self.player, self.weapon, self.camera, self.hud = self.level_loader.load(
             f"levels/{target}", keep_player=True, current_player=self.player
         )
+        self._assign_blood_group()
 
     def _restart(self) -> None:
         self.player_dead = False
+        self.blood_drops.empty()
         self.player, self.weapon, self.camera, self.hud = \
             self.level_loader.load(self.FIRST_LEVEL)
+        self._assign_blood_group()
 
     # Helpers
 

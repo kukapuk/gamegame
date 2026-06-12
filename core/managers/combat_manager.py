@@ -57,15 +57,28 @@ class CombatManager:
                 enemy.last_hit_zone = result.zone
 
                 if result.zone == HitZone.HEAD:
+                    head_result = resolve_hit(
+                        base_damage     = bullet.damage,
+                        base_se         = bullet.stopping_effect,
+                        armor_pen       = armor_pen,
+                        armor_class     = enemy.helmet_class,
+                        hit_head_hitbox = True,
+                        settings        = self.s,
+                    )
                     if enemy.helmet_class == 0:
-                        # нет шлема — мгновенная смерть
                         enemy.take_damage(enemy.hp)
                     else:
-                        # шлем снижает урон пропорционально тиру
-                        helmet_mult = max(0.1, 1.0 - enemy.helmet_class * 0.25)
-                        enemy.take_damage(int(result.damage * helmet_mult))
+                        enemy.take_damage(head_result.damage)
                 else:
                     enemy.take_damage(result.damage)
+                    if result.penetrated:
+                        bleed_chance = {
+                            HitZone.TORSO: 0.15,
+                            HitZone.ARMS:  0.30,
+                            HitZone.LEGS:  0.30,
+                        }.get(result.zone, 0.0)
+                        if bleed_chance > 0 and random.random() < bleed_chance:
+                            enemy.apply_bleeding()
 
                 enemy.take_hit_from_direction(bullet.velocity)
                 if result.stopping_effect > 0 and bullet.velocity.length() > 0:
@@ -112,7 +125,7 @@ class CombatManager:
             result = resolve_hit(
                 base_damage     = bullet.damage,
                 base_se         = 0.0,
-                armor_pen       = 0,
+                armor_pen       = getattr(bullet, "armor_pen", 0),
                 armor_class     = armor_class,
                 hit_head_hitbox = hit_head,
                 settings        = self.s,
@@ -121,18 +134,22 @@ class CombatManager:
 
             if result.zone == HitZone.HEAD:
                 if helmet_class == 0:
-                    # нет шлема — instant kill
                     player.take_damage(player.hp)
-                elif not result.penetrated:
-                    # шлем не пробит — обычный урон без x2.5
-                    base_dmg = int(result.damage / 2.5)
-                    helmet_mult = max(0.1, 1.0 - helmet_class * 0.25)
-                    player.take_damage(int(base_dmg * helmet_mult * 16))
                 else:
-                    # шлем пробит — большой урон но не смертельный
-                    helmet_mult = max(0.1, 1.0 - helmet_class * 0.25)
-                    damage = int(result.damage * helmet_mult * 16)
-                    player.take_damage(min(damage, player.hp - 1))
+                    head_result = resolve_hit(
+                        base_damage     = bullet.damage,
+                        base_se         = 0.0,
+                        armor_pen       = getattr(bullet, "armor_pen", 0),
+                        armor_class     = helmet_class,
+                        hit_head_hitbox = True,
+                        settings        = self.s,
+                    )
+                    if head_result.penetrated:
+                        # пробит — большой урон но не смертельный
+                        player.take_damage(min(head_result.damage * 1.5, player.hp - 1))
+                    else:
+                        # не пробит — урон снижен
+                        player.take_damage(head_result.damage)
             else:
                 player.take_damage(result.damage)
 

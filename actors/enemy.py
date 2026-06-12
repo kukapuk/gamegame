@@ -93,6 +93,7 @@ class Enemy(Actor):
         self._all_sprites           = None
         self._bullet_speed: float   = 0.0
         self._bullet_damage: int    = 0
+        self._bullet_armor_pen: int  = 0
         self._bullet_color: tuple   = (255, 200, 50)
 
         self.vision_range: float = self.VISION_RANGE
@@ -342,6 +343,7 @@ class Enemy(Actor):
             size=6,
             color=self._bullet_color,
             stopping_effect=0.0,
+            armor_pen=self._bullet_armor_pen,
             groups=groups,
         )
 
@@ -488,7 +490,8 @@ def make_shooter(
     e._shoot_cooldown   = 1.2
     e._preferred_dist   = 220.0
     e._bullet_speed     = 380.0
-    e._bullet_damage    = 30
+    e._bullet_damage    = 15
+    e._bullet_armor_pen = 0
     e._bullet_color     = (220, 100, 255)
     e._bullet_group     = bullet_group
     e._all_sprites      = all_sprites

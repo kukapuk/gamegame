@@ -42,23 +42,31 @@ def resolve_hit(
     gap        = armor_class - armor_pen
     penetrated = False
 
-    if gap <= 0:
+    # шанс пробития зависит от gap (armor_class - armor_pen):
+    # gap <= 0  → 100%  (пробивает всегда)
+    # gap == 1  → 50%
+    # gap == 2  → 25%
+    # gap >= 3  → 15%
+    # равенство (gap == 0 при ap == ac) → 75%
+    if armor_pen == armor_class:
+        pen_chance = 0.75
+    elif gap <= 0:
+        pen_chance = 1.0
+    elif gap == 1:
+        pen_chance = 0.50
+    elif gap == 2:
+        pen_chance = 0.25
+    else:
+        pen_chance = 0.15
+
+    if random.random() < pen_chance:
         final_damage = base_damage
         final_se     = base_se * settings.armor_pen_se_mult
         penetrated   = True
-    elif gap == 1:
-        if random.random() < settings.armor_partial_chance:
-            final_damage = base_damage
-            final_se     = base_se * settings.armor_pen_se_mult
-            penetrated   = True
-        else:
-            final_damage = int(base_damage * settings.armor_damage_gap1)
-            final_se     = base_se
-    elif gap == 2:
-        final_damage = int(base_damage * settings.armor_damage_gap2)
-        final_se     = base_se
     else:
-        final_damage = int(base_damage * settings.armor_damage_gap3)
+        # не пробил — урон снижается пропорционально gap
+        dmg_mult = max(0.1, 1.0 - gap * 0.2)
+        final_damage = int(base_damage * dmg_mult)
         final_se     = base_se
 
     if zone == HitZone.HEAD:

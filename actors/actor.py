@@ -1,16 +1,46 @@
 import pygame
+import random
+
+
+class BloodDrop(pygame.sprite.Sprite):
+    """Красный квадратик на полу — след кровотечения."""
+
+    LIFETIME = 9.0
+    SIZE     = 4
+
+    def __init__(self, pos: pygame.math.Vector2, groups: list = ()) -> None:
+        super().__init__(*groups)
+        ox = random.randint(-6, 6)
+        oy = random.randint(-6, 6)
+        self.image = pygame.Surface((self.SIZE, self.SIZE))
+        self.image.fill((160, 20, 20))
+        self.rect  = self.image.get_rect(
+            center=(round(pos.x + ox), round(pos.y + oy))
+        )
+        self._lifetime = self.LIFETIME
+
+    def update(self, dt: float) -> None:
+        self._lifetime -= dt
+        if self._lifetime <= 0:
+            self.kill()
+            return
+        # постепенно темнеет и исчезает
+        alpha = max(0, int(255 * self._lifetime / self.LIFETIME))
+        self.image.set_alpha(alpha)
 
 
 class Actor(pygame.sprite.Sprite):
     """
     Base class for every entity in the game: player, enemies, NPCs.
 
-    Two hitboxes:
+    Два хитбокса:
       body_rect -- full sprite collider
       head_rect -- sticks out above body_rect (half above, half inside)
+
+    Кровотечение: bleeding=True → -3 HP/сек, спавн BloodDrop каждые 0.5 сек.
     """
 
-    HEAD_SIZE_RATIO = 0.45  # голова = 45% ширины спрайта, квадратная
+    HEAD_SIZE_RATIO = 0.45
 
     def __init__(
         self,
@@ -26,18 +56,31 @@ class Actor(pygame.sprite.Sprite):
         self.image.fill(color)
         self.rect = self.image.get_rect(center=pos)
 
-        self.pos = pygame.math.Vector2(pos)
+        self.pos      = pygame.math.Vector2(pos)
         self.velocity = pygame.math.Vector2(0, 0)
-        self.facing = pygame.math.Vector2(0, 1)
+        self.facing   = pygame.math.Vector2(0, 1)
 
-        self.speed: float = 0.0
-        self.hp: int = 100
-        self.max_hp: int = 100
-        self.alive: bool = True
+        self.speed:  float = 0.0
+        self.hp:     int   = 100
+        self.max_hp: int   = 100
+        self.alive:  bool  = True
 
         self.body_rect     = self.rect.copy()
         self.head_rect     = self._calc_head_rect()
-        self.last_hit_zone = None   # HitZone | None
+        self.last_hit_zone = None
+
+        # кровотечение
+        self.bleeding:         bool  = False
+        self._bleed_timer:     float = 0.0
+        self._bleed_interval:  float = 1.0
+        self._bleed_damage:    int   = 3
+        self._drop_timer:      float = 0.0
+        self._drop_interval:   float = 0.5
+        self._blood_group:     pygame.sprite.Group = None  # задаётся снаружи
+
+    # ------------------------------------------------------------------ #
+    # Hitboxes
+    # ------------------------------------------------------------------ #
 
     def _calc_head_rect(self) -> pygame.Rect:
         sz = max(4, int(self.rect.width * self.HEAD_SIZE_RATIO))
@@ -51,13 +94,51 @@ class Actor(pygame.sprite.Sprite):
         self.body_rect = self.rect.copy()
         self.head_rect = self._calc_head_rect()
 
+    # ------------------------------------------------------------------ #
+    # Bleeding
+    # ------------------------------------------------------------------ #
+
+    def apply_bleeding(self) -> None:
+        self.bleeding     = True
+        self._bleed_timer = 0.0
+        self._drop_timer  = 0.0
+
+    def stop_bleeding(self) -> None:
+        self.bleeding     = False
+        self._bleed_timer = 0.0
+        self._drop_timer  = 0.0
+
+    def _update_bleeding(self, dt: float) -> None:
+        if not self.bleeding:
+            return
+
+        self._bleed_timer += dt
+        if self._bleed_timer >= self._bleed_interval:
+            self._bleed_timer -= self._bleed_interval
+            self.take_damage(self._bleed_damage)
+
+        self._drop_timer += dt
+        if self._drop_timer >= self._drop_interval:
+            self._drop_timer -= self._drop_interval
+            if self._blood_group is not None:
+                BloodDrop(self.pos, groups=[self._blood_group])
+
+    # ------------------------------------------------------------------ #
+    # Damage
+    # ------------------------------------------------------------------ #
+
     def take_damage(self, amount: int) -> None:
         self.hp = max(0, self.hp - amount)
         if self.hp == 0:
             self.alive = False
             self.kill()
 
+    # ------------------------------------------------------------------ #
+    # Update / move
+    # ------------------------------------------------------------------ #
+
     def update(self, dt: float, walls: pygame.sprite.Group = None) -> None:
+        self._update_bleeding(dt)
         if walls:
             self._move_with_collisions(dt, walls)
         else:
@@ -88,6 +169,10 @@ class Actor(pygame.sprite.Sprite):
         self.pos.update(pos)
         self.rect.center = (round(self.pos.x), round(self.pos.y))
         self._update_hitboxes()
+
+    # ------------------------------------------------------------------ #
+    # Debug
+    # ------------------------------------------------------------------ #
 
     def draw_debug(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         body = self.body_rect.move(-camera_offset.x, -camera_offset.y)

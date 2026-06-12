@@ -20,6 +20,7 @@ class Bullet(pygame.sprite.Sprite):
         color: tuple[int, int, int],
         stopping_effect: float,
         groups: list = (),
+        armor_pen: int = 0,
         can_ricochet: bool = False,
         ricochet_spread: float = 8.0,
         ricochet_damage_mult: float = 0.7,
@@ -28,6 +29,7 @@ class Bullet(pygame.sprite.Sprite):
 
         self.damage          = damage
         self.stopping_effect = stopping_effect
+        self.armor_pen       = armor_pen
         self.lifetime        = lifetime
         self.color           = color
         self.size            = size

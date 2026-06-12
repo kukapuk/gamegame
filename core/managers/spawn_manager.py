@@ -68,9 +68,9 @@ class SpawnManager:
             armor_class=props.get("armor_class", 0),
             groups=[self.all_sprites, self.enemies],
         )
-        e.pathfinder    = pathfinder
-        e.enemies_group = self.enemies
-        e.helmet_class  = props.get("helmet_class", 0)
+        e.pathfinder       = pathfinder
+        e.enemies_group    = self.enemies
+        e.helmet_class     = props.get("helmet_class", 0)
         patrol = self._parse_patrol(props)
         if patrol:
             e.set_patrol(patrol)
@@ -85,9 +85,10 @@ class SpawnManager:
             bullet_group=self.enemy_bullets,
             all_sprites=self.all_sprites,
         )
-        e.pathfinder    = pathfinder
-        e.enemies_group = self.enemies
-        e.helmet_class  = props.get("helmet_class", 0)
+        e.pathfinder       = pathfinder
+        e.enemies_group    = self.enemies
+        e.helmet_class     = props.get("helmet_class", 0)
+        e._bullet_armor_pen = props.get("bullet_armor_pen", 0)
 
     def _parse_patrol(self, props: dict) -> list:
         points = []

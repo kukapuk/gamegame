@@ -260,6 +260,8 @@ class HUD:
             self._draw_i_progress(screen, i_hold_progress)
         if player and player.is_using_item:
             self._draw_use_progress(screen, player)
+        if player:
+            self._draw_status_flags(screen, player)
         self._draw_tooltip(screen, pygame.mouse.get_pos())
         self.draw_info_panels(screen)
 
@@ -754,3 +756,34 @@ class HUD:
         if isinstance(item, Consumable):
             return [item.get_tooltip()]
         return [item.get_tooltip()]
+
+    def _draw_status_flags(self, screen: pygame.Surface, player) -> None:
+        """Флажки активных статусов: кровотечение, руки, ноги."""
+        import time
+        flags = []
+        if player.bleeding:
+            flags.append(("BLEED", (200, 40, 40)))
+        if getattr(player, "arms_damaged", False):
+            flags.append(("ARMS",  (220, 130, 40)))
+        if getattr(player, "legs_damaged", False):
+            flags.append(("LEGS",  (220, 130, 40)))
+        if not flags:
+            return
+
+        bx = self.MARGIN
+        by = self._bar_baseline() - self.s.player_hp_bar_height - 22
+        fw, fh, pad = 46, 14, 4
+
+        for i, (label, color) in enumerate(flags):
+            # мигание каждые 0.5 сек
+            visible = int(time.time() * 2) % 2 == 0
+            fx = bx + i * (fw + pad)
+
+            bg_color = (*color, 80) if visible else (*color, 30)
+            bg = pygame.Surface((fw, fh), pygame.SRCALPHA)
+            bg.fill(bg_color)
+            screen.blit(bg, (fx, by))
+            pygame.draw.rect(screen, color, (fx, by, fw, fh), 1, border_radius=3)
+
+            lbl = self.font_sm.render(label, True, color if visible else (80, 80, 80))
+            screen.blit(lbl, lbl.get_rect(center=(fx + fw // 2, by + fh // 2)))

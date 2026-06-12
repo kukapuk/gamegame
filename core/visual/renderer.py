@@ -45,6 +45,7 @@ class Renderer:
         dialog_manager,
         save_manager,
         audio_manager,
+        blood_drops:   pygame.sprite.Group = None,
         i_hold_progress: float = 0.0,
         player_dead: bool = False,
         debug: bool = False,
@@ -53,6 +54,11 @@ class Renderer:
 
         screen.fill(self.s.bg_color)
         level.draw_floor(screen, offset)
+
+        # кровь рисуется поверх пола, но под акторами
+        if blood_drops:
+            for drop in blood_drops:
+                screen.blit(drop.image, drop.rect.move(-offset.x, -offset.y))
 
         self._draw_sprites(screen, camera, level, world_items, npcs, enemies,
                            enemy_bullets, bullets, player, weapon)
