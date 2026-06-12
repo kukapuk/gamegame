@@ -6,11 +6,18 @@ from items.item import ItemType
 from core.settings import Settings
 
 
+class StepEvent:
+    """Событие шага — передаётся в AudioManager как звуковое событие."""
+    def __init__(self, pos: pygame.math.Vector2, radius: float) -> None:
+        self.pos    = pygame.math.Vector2(pos)
+        self.radius = radius
+
+
 class Player(Actor):
     """
     Human-controlled actor.
-    Движение WASD, Shift — бег, Space — dash.
-    Все характеристики берутся из self.stats — меняются при смене брони.
+    WASD — движение, Shift — спринт, Space — dash, Ctrl — крадёмся.
+    При крадущемся режиме скорость -20%, шагов не слышно.
     """
 
     def __init__(self, pos: tuple[float, float], settings: Settings, groups: list = ()) -> None:
@@ -21,20 +28,24 @@ class Player(Actor):
             groups=groups,
         )
         self.settings = settings
-        self.stats = Stats()
-        self.speed = self.stats.speed
+        self.stats    = Stats()
+        self.speed    = self.stats.speed
 
-        self.facing = pygame.math.Vector2(0, 1)
+        self.facing    = pygame.math.Vector2(0, 1)
         self._move_dir = pygame.math.Vector2(0, 0)
 
-        self.stamina: float = self.stats.max_stamina
+        self.stamina: float        = self.stats.max_stamina
         self._dash_cooldown: float = 0.0
-        self._dash_timer: float = 0.0
-        self._dash_velocity = pygame.math.Vector2(0, 0)
-        self._is_dashing: bool = False
-        self.is_sprinting: bool = False
+        self._dash_timer: float    = 0.0
+        self._dash_velocity        = pygame.math.Vector2(0, 0)
+        self._is_dashing: bool     = False
+        self.is_sprinting: bool    = False
+        self.is_crouching: bool    = False
 
-        self.pouch = Inventory(
+        self._step_timer: float    = 0.0
+        self._pending_steps: list  = []   # список StepEvent за кадр
+
+        self.pouch    = Inventory(
             capacity=4,
             typed_slots=[ItemType.WEAPON, ItemType.WEAPON, ItemType.ARMOR],
             owner=self,
@@ -66,48 +77,58 @@ class Player(Actor):
         return True
 
     def try_dash(self) -> None:
-        if self._is_dashing:
-            return
-        if self._dash_cooldown > 0:
+        if self._is_dashing or self._dash_cooldown > 0:
             return
         if self.stamina < self.stats.dash_stamina_cost:
             return
         direction = self._move_dir if self._move_dir.length() > 0 else self.facing
-        self.stamina -= self.stats.dash_stamina_cost
-        self._is_dashing = True
-        self._dash_timer = self.stats.dash_duration
-        self._dash_cooldown = self.stats.dash_cooldown
-        dash_speed = self.stats.dash_distance / self.stats.dash_duration
-        self._dash_velocity = direction.normalize() * dash_speed
+        self.stamina        -= self.stats.dash_stamina_cost
+        self._is_dashing     = True
+        self._dash_timer     = self.stats.dash_duration
+        self._dash_cooldown  = self.stats.dash_cooldown
+        dash_speed           = self.stats.dash_distance / self.stats.dash_duration
+        self._dash_velocity  = direction.normalize() * dash_speed
+        # дэш всегда издаёт звук — даже при крадущемся режиме
+        self._emit_step(self.settings.step_radius_dash)
+
+    def pop_step_events(self) -> list:
+        """Возвращает и очищает список звуковых событий шагов за кадр."""
+        events = self._pending_steps[:]
+        self._pending_steps.clear()
+        return events
+
+    def _emit_step(self, radius: float) -> None:
+        self._pending_steps.append(StepEvent(self.pos, radius))
 
     def _handle_input(self) -> None:
         keys = pygame.key.get_pressed()
 
         direction = pygame.math.Vector2(0, 0)
-        if keys[pygame.K_w] or keys[pygame.K_UP]:
-            direction.y -= 1
-        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            direction.y += 1
-        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            direction.x -= 1
-        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            direction.x += 1
-
+        if keys[pygame.K_w] or keys[pygame.K_UP]:    direction.y -= 1
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]:  direction.y += 1
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:  direction.x -= 1
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]: direction.x += 1
         if direction.length() > 0:
             direction = direction.normalize()
 
         self._move_dir = direction
 
+        ctrl_held  = keys[pygame.K_LCTRL] or keys[pygame.K_RCTRL]
         shift_held = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+
+        self.is_crouching = ctrl_held and not self._is_dashing
         self.is_sprinting = (
             shift_held
             and direction.length() > 0
             and not self._is_dashing
+            and not self.is_crouching
             and self.stamina > 0
         )
 
         if not self._is_dashing:
-            if self.is_sprinting:
+            if self.is_crouching:
+                self.velocity = direction * self.speed * self.settings.crouch_speed_mult
+            elif self.is_sprinting:
                 self.velocity = direction * self.speed * self.stats.sprint_multiplier
             else:
                 self.velocity = direction * self.speed
@@ -119,7 +140,7 @@ class Player(Actor):
             self.velocity = self._dash_velocity
             if self._dash_timer <= 0:
                 self._is_dashing = False
-                self.velocity = self._move_dir * self.speed
+                self.velocity    = self._move_dir * self.speed
 
     def _update_stamina(self, dt: float) -> None:
         if self._is_dashing:
@@ -132,8 +153,29 @@ class Player(Actor):
                 self.stamina + self.stats.stamina_regen * dt,
             )
 
+    def _update_footsteps(self, dt: float) -> None:
+        moving = self._move_dir.length() > 0 and not self._is_dashing
+
+        if not moving or self.is_crouching:
+            self._step_timer = 0.0
+            return
+
+        s = self.settings
+        if self.is_sprinting:
+            interval = s.step_interval_sprint
+            radius   = s.step_radius_sprint
+        else:
+            interval = s.step_interval_walk
+            radius   = s.step_radius_walk
+
+        self._step_timer += dt
+        if self._step_timer >= interval:
+            self._step_timer = 0.0
+            self._emit_step(radius)
+
     def update(self, dt: float, walls: pygame.sprite.Group = None) -> None:
         self._handle_input()
         self._update_dash(dt)
         self._update_stamina(dt)
+        self._update_footsteps(dt)
         super().update(dt, walls)

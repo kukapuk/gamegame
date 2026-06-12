@@ -79,7 +79,9 @@ class Renderer:
         self._draw_cursor(screen, weapon, hud, player, offset)
         pygame.display.flip()
 
+    # ------------------------------------------------------------------ #
     # Private helpers
+    # ------------------------------------------------------------------ #
 
     def _draw_sprites(
         self, screen, camera, level,
@@ -181,17 +183,14 @@ class Renderer:
         player,
         camera_offset: pygame.math.Vector2,
     ) -> None:
-        mx, my = pygame.mouse.get_pos()
+        mx, my     = pygame.mouse.get_pos()
         has_weapon = weapon and weapon.has_weapon and not hud.is_open()
 
         if has_weapon:
             radius     = self._weapon_item_aim_radius(weapon)
             player_scr = player.pos - camera_offset
 
-            # кольцо радиуса - тонкое, полупрозрачное
-            ring_surf = pygame.Surface(
-                (radius * 2 + 2, radius * 2 + 2), pygame.SRCALPHA
-            )
+            ring_surf = pygame.Surface((radius * 2 + 2, radius * 2 + 2), pygame.SRCALPHA)
             pygame.draw.circle(
                 ring_surf, (255, 255, 255, 35),
                 (radius + 1, radius + 1), radius, 1
@@ -202,15 +201,19 @@ class Renderer:
                  round(player_scr.y) - radius - 1),
             )
 
-            # прицел - круг с центральной точкой
             pygame.draw.circle(screen, (0, 0, 0),       (mx, my), 9, 1)
             pygame.draw.circle(screen, (220, 220, 220),  (mx, my), 8, 1)
             pygame.draw.circle(screen, (220, 220, 220),  (mx, my), 2)
         else:
-            # квадратик
             size = 8
             pygame.draw.rect(screen, (20, 20, 20),
                              (mx - size // 2, my - size // 2, size, size))
+
+        # иконка крадущегося режима
+        if player.is_crouching:
+            font = pygame.font.SysFont("monospace", 11)
+            lbl  = font.render("[C]", True, (100, 180, 255))
+            screen.blit(lbl, (mx + 14, my + 10))
 
     @staticmethod
     def _weapon_item_aim_radius(weapon) -> float:

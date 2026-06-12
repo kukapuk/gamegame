@@ -231,6 +231,7 @@ class GameScene:
         self.world.update(self.player)
 
         self._propagate_sound_events()
+        self._propagate_footsteps()
 
         if pygame.mouse.get_pressed()[0] and not self.hud.is_open():
             if self.weapon.try_shoot():
@@ -253,6 +254,13 @@ class GameScene:
         for ev in self.audio.get_sound_events():
             for enemy in self.enemies:
                 enemy.hear_sound(ev["pos"], ev["radius"])
+
+    def _propagate_footsteps(self) -> None:
+        step_color = (80, 160, 255)
+        for step in self.player.pop_step_events():
+            self.audio.play_at("step", step.pos, step.radius, color=step_color)
+            for enemy in self.enemies:
+                enemy.hear_sound(step.pos, step.radius)
 
     # Level transitions
 

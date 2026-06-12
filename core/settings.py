@@ -59,3 +59,14 @@ class Settings:
     armor_damage_gap2: float    = 0.35
     armor_damage_gap3: float    = 0.2
     armor_pen_se_mult: float    = 0.1
+
+    # Sound
+    gunshot_sound_radius: float = 400.0
+
+    # Footsteps
+    step_radius_walk:   float = 120.0
+    step_radius_sprint: float = 180.0
+    step_radius_dash:   float = 240.0
+    step_interval_walk: float = 0.4
+    step_interval_sprint: float = 0.2
+    crouch_speed_mult:  float = 0.8
