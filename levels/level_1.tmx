@@ -117,6 +117,7 @@
   <object id="20" name="enemy_shooter_1" type="enemy_shooter" x="1430.9" y="159.796" width="47.2124" height="50.8441">
    <properties>
     <property name="armor_class" type="int" value="2"/>
+    <property name="helmet_class" type="int" value="3"/>
    </properties>
   </object>
   <object id="21" name="bandage" type="item_spawn" x="264" y="838.667" width="76" height="76">

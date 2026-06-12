@@ -49,7 +49,8 @@ class Enemy(Actor):
             groups=groups,
         )
         self.target      = target
-        self.armor_class = armor_class
+        self.armor_class  = armor_class
+        self.helmet_class = 0   # 0 = нет шлема, 1-3 = тир шлема
         self.walls       = None
 
         self.stats = Stats(

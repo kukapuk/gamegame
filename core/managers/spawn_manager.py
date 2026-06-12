@@ -70,6 +70,7 @@ class SpawnManager:
         )
         e.pathfinder    = pathfinder
         e.enemies_group = self.enemies
+        e.helmet_class  = props.get("helmet_class", 0)
         patrol = self._parse_patrol(props)
         if patrol:
             e.set_patrol(patrol)
@@ -86,6 +87,7 @@ class SpawnManager:
         )
         e.pathfinder    = pathfinder
         e.enemies_group = self.enemies
+        e.helmet_class  = props.get("helmet_class", 0)
 
     def _parse_patrol(self, props: dict) -> list:
         points = []

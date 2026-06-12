@@ -54,8 +54,19 @@ class CombatManager:
                     hit_head_hitbox = hit_head,
                     settings        = self.s,
                 )
-                enemy.take_damage(result.damage)
                 enemy.last_hit_zone = result.zone
+
+                if result.zone == HitZone.HEAD:
+                    if enemy.helmet_class == 0:
+                        # нет шлема — мгновенная смерть
+                        enemy.take_damage(enemy.hp)
+                    else:
+                        # шлем снижает урон пропорционально тиру
+                        helmet_mult = max(0.1, 1.0 - enemy.helmet_class * 0.25)
+                        enemy.take_damage(int(result.damage * helmet_mult))
+                else:
+                    enemy.take_damage(result.damage)
+
                 enemy.take_hit_from_direction(bullet.velocity)
                 if result.stopping_effect > 0 and bullet.velocity.length() > 0:
                     enemy.apply_stopping_effect(bullet.velocity, result.stopping_effect)
