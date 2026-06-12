@@ -4,6 +4,18 @@ from combat.calculator import resolve_hit, HitZone
 from core.settings import Settings
 
 
+def _armor_protects_limbs(player) -> bool:
+    """Возвращает True если экипированная броня защищает конечности."""
+    from items.armor import Armor
+    from items.item import ItemType
+    armor_slots = [s for s in player.pouch.typed_slots if s.allowed_type == ItemType.ARMOR]
+    if armor_slots and not armor_slots[0].empty:
+        item = armor_slots[0].item
+        if isinstance(item, Armor):
+            return item.protects_limbs
+    return False
+
+
 class CombatManager:
     """
     Боевые взаимодействия: пули <-> акторы, контакт, стены.
@@ -98,9 +110,12 @@ class CombatManager:
 
             if result.penetrated:
                 if result.zone == HitZone.ARMS:
-                    player.apply_arms_debuff()
+                    # дебафф конечностей только если броня не защищает их
+                    if not _armor_protects_limbs(player):
+                        player.apply_arms_debuff()
                 elif result.zone == HitZone.LEGS:
-                    player.apply_legs_debuff()
+                    if not _armor_protects_limbs(player):
+                        player.apply_legs_debuff()
 
                 bleed_chance = {
                     HitZone.TORSO: 0.20,

@@ -237,18 +237,28 @@ class Player(Actor):
                 self.stamina + self.stats.stamina_regen * dt,
             )
 
+    def _get_step_radius_mult(self) -> float:
+        from items.armor import Armor
+        armor_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.ARMOR]
+        if armor_slots and not armor_slots[0].empty:
+            item = armor_slots[0].item
+            if isinstance(item, Armor):
+                return item.step_radius_mult
+        return 1.0
+
     def _update_footsteps(self, dt: float) -> None:
         moving = self._move_dir.length() > 0 and not self._is_dashing
         if not moving or self.is_crouching:
             self._step_timer = 0.0
             return
-        s = self.settings
+        s    = self.settings
+        mult = self._get_step_radius_mult()
         if self.is_sprinting:
             interval = s.step_interval_sprint
-            radius   = s.step_radius_sprint
+            radius   = s.step_radius_sprint * mult
         else:
             interval = s.step_interval_walk
-            radius   = s.step_radius_walk
+            radius   = s.step_radius_walk * mult
         self._step_timer += dt
         if self._step_timer >= interval:
             self._step_timer = 0.0

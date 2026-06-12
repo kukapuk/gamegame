@@ -5,6 +5,8 @@ TIER_COLORS            = [(120, 120, 130), (80, 160, 100), (60, 100, 180), (140,
 DASH_STAMINA_MULT      = [1.0,  1.25, 1.75, 2.5]
 SPRINT_SPEED_MULT      = [1.6,  1.45, 1.3,  1.15]
 SPRINT_STAMINA_DRAIN   = [15.0, 20.0, 30.0, 45.0]
+PROTECTS_LIMBS         = [False, False, False, True]   # только тяжёлая
+STEP_RADIUS_MULT       = [1.0,   1.0,   1.3,  1.60]   # тяжёлая громче
 
 
 class Armor(Item):
@@ -24,6 +26,8 @@ class Armor(Item):
         self.dash_stamina_mult    = DASH_STAMINA_MULT[tier]
         self.sprint_speed_mult    = SPRINT_SPEED_MULT[tier]
         self.sprint_stamina_drain = SPRINT_STAMINA_DRAIN[tier]
+        self.protects_limbs       = PROTECTS_LIMBS[tier]
+        self.step_radius_mult     = STEP_RADIUS_MULT[tier]
 
     def equip(self, player) -> None:
         from items.stats import Stats
