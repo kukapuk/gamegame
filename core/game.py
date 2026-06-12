@@ -8,6 +8,7 @@ from core.dialog_manager import DialogManager
 from core.loot_manager import LootManager
 from core.combat_manager import CombatManager
 from core.world_manager import WorldManager
+from core.renderer import Renderer
 from actors.player import Player
 from combat.weapon import Weapon
 from items.consumable import make_medkit
@@ -53,15 +54,13 @@ class Game:
         self.save_manager = SaveManager()
         self.dialog       = DialogManager(settings)
 
-        self.debug       = True
+        self.debug       = False
         self.player_dead = False
 
         self._i_held_time: float = 0.0
         self._i_triggered: bool  = False
 
-        self._font_interact  = pygame.font.SysFont("monospace", 14)
-        self._death_font_big = pygame.font.SysFont("monospace", 72, bold=True)
-        self._death_font_sm  = pygame.font.SysFont("monospace", 24)
+        self.renderer = Renderer(settings, self.clock)
 
     # Level loading
 
@@ -303,107 +302,24 @@ class Game:
     # Draw
 
     def _draw(self) -> None:
-        self.screen.fill(self.settings.bg_color)
-        self.world.level.draw_floor(self.screen, self.camera.get_offset())
-        self._draw_sprites()
-        self._draw_enemy_hp_bars()
-        self.hud.draw_world_hover(self.screen, self.camera.get_offset())
-        self.loot.draw_hint(self.screen, self.camera.get_offset())
-        self.world.draw(self.screen, self.camera.get_offset())
-        self._draw_npc_hint()
-        self.hud.draw(self.screen,
-                      i_hold_progress=self._i_held_time / self.settings.backpack_hold_time,
-                      weapon=self.weapon)
-        if self.debug:
-            self._draw_debug_info()
-        if self.player_dead:
-            self._draw_death_screen()
-        self._draw_save_hint(self.screen)
-        self.dialog.draw(self.screen)
-        pygame.display.flip()
-
-    def _draw_sprites(self) -> None:
-        for sprite in self.world.level.walls:
-            self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
-        for sprite in self.world_items:
-            self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
-        for npc in self.npcs:
-            self.screen.blit(npc.image, self.camera.apply(npc.rect))
-            npc.draw_name(self.screen, self.camera.get_offset())
-        for sprite in [*self.enemy_bullets.sprites(), *self.bullets.sprites(),
-                       *self.enemies.sprites(), self.player]:
-            self.screen.blit(sprite.image, self.camera.apply(sprite.rect))
-        if self.weapon.has_weapon:
-            self.screen.blit(self.weapon.image, self.camera.apply(self.weapon.rect))
-
-    def _draw_enemy_hp_bars(self) -> None:
-        s = self.settings
-        for enemy in self.enemies:
-            bar_rect = self.camera.apply(enemy.rect)
-            bx = bar_rect.centerx - s.enemy_hp_bar_width // 2
-            by = bar_rect.top - 8
-            pygame.draw.rect(self.screen, s.enemy_hp_bar_bg,
-                             (bx, by, s.enemy_hp_bar_width, s.enemy_hp_bar_height))
-            fill = int(s.enemy_hp_bar_width * enemy.hp / enemy.max_hp)
-            if fill > 0:
-                pygame.draw.rect(self.screen, s.enemy_hp_bar_color,
-                                 (bx, by, fill, s.enemy_hp_bar_height))
-
-    def _draw_npc_hint(self) -> None:
-        nearby_npc = self.world.get_nearby_npc()
-        if not nearby_npc:
-            return
-        screen_pos = self.camera.apply(nearby_npc.rect)
-        text       = f"[E]  Talk to {nearby_npc.name}"
-        surf       = self._font_interact.render(text, True, (200, 220, 255))
-        pad        = 5
-        bg         = pygame.Surface(
-            (surf.get_width() + pad * 2, surf.get_height() + pad * 2), pygame.SRCALPHA
+        self.renderer.draw(
+            self.screen,
+            level          = self.world.level,
+            camera         = self.camera,
+            player         = self.player,
+            weapon         = self.weapon,
+            enemies        = self.enemies,
+            bullets        = self.bullets,
+            enemy_bullets  = self.enemy_bullets,
+            world_items    = self.world_items,
+            npcs           = self.npcs,
+            hud            = self.hud,
+            world_manager  = self.world,
+            loot_manager   = self.loot,
+            dialog_manager = self.dialog,
+            save_manager   = self.save_manager,
+            audio_manager  = self.audio,
+            i_hold_progress = self._i_held_time / self.settings.backpack_hold_time,
+            player_dead    = self.player_dead,
+            debug          = self.debug,
         )
-        bg.fill((10, 10, 20, 180))
-        bx = screen_pos.centerx - bg.get_width() // 2
-        by = screen_pos.top - bg.get_height() - 6
-        self.screen.blit(bg,   (bx, by))
-        self.screen.blit(surf, (bx + pad, by + pad))
-
-    def _draw_death_screen(self) -> None:
-        overlay = pygame.Surface(
-            (self.settings.screen_width, self.settings.screen_height), pygame.SRCALPHA
-        )
-        overlay.fill((0, 0, 0, 160))
-        self.screen.blit(overlay, (0, 0))
-        cx = self.settings.screen_width  // 2
-        cy = self.settings.screen_height // 2
-        title = self._death_font_big.render("YOU DIED", True, (200, 40, 40))
-        hint  = self._death_font_sm.render("press any key to restart", True, (160, 160, 160))
-        self.screen.blit(title, title.get_rect(center=(cx, cy - 40)))
-        self.screen.blit(hint,  hint.get_rect(center=(cx, cy + 40)))
-
-    def _draw_save_hint(self, screen: pygame.Surface) -> None:
-        font = pygame.font.SysFont("monospace", 12)
-        has  = self.save_manager.has_save()
-        line = "F5 save  |  F9 load" + (" ✓" if has else "")
-        surf = font.render(line, True, (100, 100, 120))
-        screen.blit(surf, (self.settings.screen_width - surf.get_width() - 12, 8))
-
-    def _draw_debug_info(self) -> None:
-        font  = pygame.font.SysFont("monospace", 16)
-        p     = self.player
-        lines = [
-            f"FPS: {self.clock.get_fps():.0f}",
-            f"pos: ({p.pos.x:.0f}, {p.pos.y:.0f})",
-            f"stamina: {p.stamina:.0f} / {p.stats.max_stamina:.0f}",
-            f"dash cd: {p._dash_cooldown:.2f}s",
-            f"bullets: {len(self.bullets)}  enemies: {len(self.enemies)}",
-            f"world_items: {len(self.world_items)}",
-            f"enemy_bullets: {len(self.enemy_bullets)}",
-            f"level: {self.world.level.path if hasattr(self.world.level, 'path') else '?'}",
-        ]
-        for i, line in enumerate(lines):
-            surf = font.render(line, True, (180, 220, 180))
-            self.screen.blit(surf, (10, 10 + i * 20))
-        for enemy in self.enemies:
-            enemy.draw_debug(self.screen, self.camera.get_offset())
-        self.audio.draw_debug(self.screen, self.camera.get_offset())
-        self.world.draw_debug(self.screen, self.camera.get_offset())
-        p.draw_debug(self.screen, self.camera.get_offset())
