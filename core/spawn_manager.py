@@ -37,6 +37,8 @@ class SpawnManager:
         self.npcs          = npcs
         self.loot          = loot
 
+    # Public API
+
     def populate(self, level, player, pathfinder, bullets) -> None:
         """
         Спавнит всё что описано в tmx-объектах уровня.
@@ -55,6 +57,8 @@ class SpawnManager:
                 self._spawn_npc(pos, props)
             elif t == "item_spawn":
                 self._spawn_item(pos, props, player)
+
+    # Enemies
 
     def _spawn_grunt(self, pos, props, player, pathfinder) -> None:
         from actors.enemy import make_grunt
@@ -91,6 +95,8 @@ class SpawnManager:
             i += 1
         return points
 
+    # NPC
+
     def _spawn_npc(self, pos, props) -> None:
         from actors.npc import NPC
         NPC(
@@ -99,6 +105,8 @@ class SpawnManager:
             dialog_file=props.get("dialog_file", ""),
             groups=[self.all_sprites, self.npcs],
         )
+
+    # Items
 
     def _spawn_item(self, pos, props: dict, player) -> None:
         """
@@ -127,19 +135,17 @@ class SpawnManager:
 
     def _make_item(self, item_id: str, count: int):
         """Фабрика предметов по строковому id."""
+        import inspect
         from items.item_registry import REGISTRY, WEAPON_REGISTRY, register_weapons
-        from items.ammo import AmmoItem
 
         register_weapons()
 
-        # патроны — нужен count
         if item_id in REGISTRY:
             factory = REGISTRY[item_id]
-            try:
-                item = factory(count)
-            except TypeError:
-                item = factory()
-            return item
+            sig     = inspect.signature(factory)
+            if "count" in sig.parameters:
+                return factory(count)
+            return factory()
 
         if item_id in WEAPON_REGISTRY:
             return WEAPON_REGISTRY[item_id]()
