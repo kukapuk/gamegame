@@ -8,7 +8,7 @@ from core.managers.combat_manager import CombatManager
 from core.managers.world_manager import WorldManager
 from core.managers.spawn_manager import SpawnManager
 from core.level.level_loader import LevelLoader
-from core.renderer import Renderer
+from core.visual.renderer import Renderer
 from core.input_handler import InputHandler
 
 

@@ -58,7 +58,9 @@ class Weapon(pygame.sprite.Sprite):
         if weapon_item:
             self.equip(weapon_item)
 
+    # ------------------------------------------------------------------ #
     # Properties
+    # ------------------------------------------------------------------ #
 
     @property
     def has_weapon(self) -> bool:
@@ -72,7 +74,9 @@ class Weapon(pygame.sprite.Sprite):
     def jammed(self) -> bool:
         return self._weapon_item.jammed if self._weapon_item else False
 
+    # ------------------------------------------------------------------ #
     # Equip
+    # ------------------------------------------------------------------ #
 
     def equip(self, weapon_item) -> None:
         self._weapon_item   = weapon_item
@@ -93,7 +97,9 @@ class Weapon(pygame.sprite.Sprite):
         else:
             self.mag_current = 0
 
+    # ------------------------------------------------------------------ #
     # Actions
+    # ------------------------------------------------------------------ #
 
     def try_reload(self) -> None:
         if not self._weapon_item:
@@ -185,7 +191,9 @@ class Weapon(pygame.sprite.Sprite):
 
         return True
 
+    # ------------------------------------------------------------------ #
     # Update
+    # ------------------------------------------------------------------ #
 
     def update(self, dt: float, camera_offset: pygame.math.Vector2, hud_open: bool = False) -> None:
         self._fire_cooldown = max(0.0, self._fire_cooldown - dt)
@@ -233,7 +241,9 @@ class Weapon(pygame.sprite.Sprite):
             self.mag_current = self._take_ammo(needed)
             self._weapon_item.mag_current = self.mag_current
 
+    # ------------------------------------------------------------------ #
     # Ammo helpers
+    # ------------------------------------------------------------------ #
 
     def _find_ammo_count(self) -> int:
         if not self._weapon_item:
@@ -272,8 +282,19 @@ class Weapon(pygame.sprite.Sprite):
     # Visual helpers
 
     def _build_visual(self, w: int, h: int, color: tuple) -> None:
-        self._base_image = pygame.Surface((w, h), pygame.SRCALPHA)
-        self._base_image.fill(color)
+        sprite = None
+        if self._weapon_item:
+            try:
+                from combat.weapon_sprites import get_weapon_sprite
+                sprite = get_weapon_sprite(self._weapon_item.name)
+            except Exception:
+                pass
+
+        if sprite is not None:
+            self._base_image = pygame.transform.scale(sprite, (w, h))
+        else:
+            self._base_image = pygame.Surface((w, h), pygame.SRCALPHA)
+            self._base_image.fill(color)
 
     def _apply_spread(self, direction: pygame.math.Vector2, spread_deg: float) -> pygame.math.Vector2:
         if spread_deg == 0:

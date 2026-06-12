@@ -1,3 +1,4 @@
+import pygame
 from dataclasses import dataclass, field
 from items.item import Item, ItemType
 from items.ammo import AmmoType
@@ -65,6 +66,19 @@ class WeaponItem(Item):
         self.mag_current: int   = -1
         self.cleanliness: float = 1.0
         self.jammed:      bool  = False
+        self._rebuild_icon()
+
+    def _rebuild_icon(self) -> None:
+        """Строит иконку из спрайт-листа, fallback — цветной квадрат."""
+        try:
+            from combat.weapon_sprites import get_weapon_sprite
+            sprite = get_weapon_sprite(self.name)
+            if sprite:
+                self.icon = pygame.transform.scale(sprite, (40, 40))
+                return
+        except Exception:
+            pass
+        # fallback уже задан в Item.__init__
 
     def effective_spread(self) -> float:
         """Итоговый разброс с учётом загрязнения."""

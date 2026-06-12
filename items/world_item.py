@@ -27,11 +27,18 @@ class WorldItem(pygame.sprite.Sprite):
 
     def _build_image(self) -> pygame.Surface:
         if isinstance(self.item, WeaponItem):
-            s   = self.item.stats
-            w   = max(s.width, 16)
-            h   = max(s.height, 6)
+            s = self.item.stats
+            w = max(s.width, 16)
+            h = max(s.height, 6)
+            try:
+                from combat.weapon_sprites import get_weapon_sprite
+                sprite = get_weapon_sprite(self.item.name)
+                if sprite:
+                    return pygame.transform.scale(sprite, (w, h))
+            except Exception:
+                pass
             surf = pygame.Surface((w, h), pygame.SRCALPHA)
-            surf.fill(self.item.stats.color)
+            surf.fill(s.color)
             return surf
 
         sz   = 20
