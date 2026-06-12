@@ -47,8 +47,9 @@ class Level:
                 continue
             surf = tiled.get_tile_image_by_gid(gid)
             if surf:
-                rect = pygame.Rect(x * ts, y * ts, ts, ts)
-                self._floor_surfaces.append((surf, rect))
+                scaled = pygame.transform.scale(surf, (ts, ts))
+                rect   = pygame.Rect(x * ts, y * ts, ts, ts)
+                self._floor_surfaces.append((scaled, rect))
 
     def _load_walls(self, tiled, layer: pytmx.TiledTileLayer) -> None:
         ts = self.tile_size
