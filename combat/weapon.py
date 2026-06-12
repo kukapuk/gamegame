@@ -34,6 +34,8 @@ class Weapon(pygame.sprite.Sprite):
         self.mag_current: int       = 0
         self.aim_dir = pygame.math.Vector2(1, 0)
 
+        self._recoil_offset: float = 0.0 # текущее смещение назад в пикселях
+
         self._weapon_item: WeaponItem = None
         self._base_image = pygame.Surface((
             settings.weapon_width, settings.weapon_height
@@ -58,6 +60,7 @@ class Weapon(pygame.sprite.Sprite):
         self._fire_cooldown = 0.0
         self.reloading      = False
         self._reload_timer  = 0.0
+        self._recoil_offset = 0.0
         if weapon_item:
             s = weapon_item.stats
             self._build_visual(s.width, s.height, s.color)
@@ -112,13 +115,24 @@ class Weapon(pygame.sprite.Sprite):
         if self.mag_current == 0:
             self.try_reload()
 
+        self._recoil_offset = self._weapon_item.stats.recoil_distance
         return True
 
     def update(self, dt: float, camera_offset: pygame.math.Vector2) -> None:
         self._fire_cooldown = max(0.0, self._fire_cooldown - dt)
         self._update_reload(dt)
+        self._update_recoil(dt)
         self._update_aim(camera_offset)
         self._update_transform()
+
+    def _update_recoil(self, dt: float) -> None:
+        if self._recoil_offset <= 0:
+            return
+        recovery = (self._weapon_item.stats.recoil_recovery
+                    if self._weapon_item else 12.0)
+        self._recoil_offset -= self._recoil_offset * recovery * dt
+        if self._recoil_offset < 0.2:
+            self._recoil_offset = 0.0
 
     def _update_reload(self, dt: float) -> None:
         if not self.reloading:
@@ -190,7 +204,8 @@ class Weapon(pygame.sprite.Sprite):
         angle = -math.degrees(math.atan2(self.aim_dir.y, self.aim_dir.x))
         self.image = pygame.transform.rotate(self._base_image, angle)
         self.rect  = self.image.get_rect()
-        offset = self.aim_dir * self.settings.weapon_offset
+        # weapon_offset - расстояние от игрока вперёд, recoil смещает назад
+        offset = self.aim_dir * (self.settings.weapon_offset - self._recoil_offset)
         self.rect.center = (
             round(self.owner.pos.x + offset.x),
             round(self.owner.pos.y + offset.y),
