@@ -118,11 +118,11 @@ class Weapon(pygame.sprite.Sprite):
         self._recoil_offset = self._weapon_item.stats.recoil_distance
         return True
 
-    def update(self, dt: float, camera_offset: pygame.math.Vector2) -> None:
+    def update(self, dt: float, camera_offset: pygame.math.Vector2, hud_open: bool = False) -> None:
         self._fire_cooldown = max(0.0, self._fire_cooldown - dt)
         self._update_reload(dt)
         self._update_recoil(dt)
-        self._update_aim(camera_offset)
+        self._update_aim(camera_offset, hud_open)
         self._update_transform()
 
     def _update_recoil(self, dt: float) -> None:
@@ -192,15 +192,20 @@ class Weapon(pygame.sprite.Sprite):
             direction.x * sin_a + direction.y * cos_a,
         )
 
-    def _update_aim(self, camera_offset: pygame.math.Vector2) -> None:
-        mouse_screen = pygame.math.Vector2(pygame.mouse.get_pos())
+    def _update_aim(self, camera_offset: pygame.math.Vector2, hud_open: bool = False) -> None:
+        mouse_screen  = pygame.math.Vector2(pygame.mouse.get_pos())
         player_screen = self.owner.pos - camera_offset
 
-        if self._weapon_item and self._weapon_item.stats.aim_radius > 0:
+        should_clamp = (
+            self._weapon_item is not None
+            and self._weapon_item.stats.aim_radius > 0
+            and not hud_open
+        )
+        if should_clamp:
             radius = self._weapon_item.stats.aim_radius
             delta  = mouse_screen - player_screen
             if delta.length() > radius:
-                clamped     = player_screen + delta.normalize() * radius
+                clamped      = player_screen + delta.normalize() * radius
                 mouse_screen = clamped
                 pygame.mouse.set_pos(round(clamped.x), round(clamped.y))
 

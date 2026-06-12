@@ -216,7 +216,7 @@ class GameScene:
         self.bullets.update(dt)
         self.enemy_bullets.update(dt)
         self.world_items.update(dt)
-        self.weapon.update(dt, self.camera.get_offset())
+        self.weapon.update(dt, self.camera.get_offset(), self.hud.is_open())
         self.audio.update(dt)
         self.loot.update(self.player)
         self.world.update(self.player)
@@ -264,3 +264,4 @@ class GameScene:
         item = self.player.get_active_weapon()
         if item is not self.weapon._weapon_item:
             self.weapon.equip(item if item else None)
+    
