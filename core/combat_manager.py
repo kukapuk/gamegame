@@ -42,6 +42,7 @@ class CombatManager:
                     settings=self.s,
                 )
                 enemy.take_damage(damage)
+                enemy.take_hit_from_direction(bullet.velocity)
                 if se > 0 and bullet.velocity.length() > 0:
                     enemy.apply_stopping_effect(bullet.velocity, se)
 

@@ -130,6 +130,21 @@ class Enemy(Actor):
             self._last_known_pos = pygame.math.Vector2(world_pos)
             self.state = EnemyState.CHASE
 
+    def take_hit_from_direction(self, bullet_velocity: pygame.math.Vector2) -> None:
+        """
+        Враг получил пулю. Вычисляет примерную позицию стрелка
+        по направлению пули и переходит в CHASE.
+        Работает даже если враг не видел и не слышал игрока.
+        """
+        if bullet_velocity.length() == 0:
+            return
+        # стрелок где-то позади пули — идём в обратном направлении
+        estimation_dist  = 300.0
+        estimated_origin = self.pos - bullet_velocity.normalize() * estimation_dist
+        self._last_known_pos = estimated_origin
+        self.state           = EnemyState.CHASE
+        self._path           = []   # сбросить старый путь
+
     def can_see_target(self) -> bool:
         delta = self.target.pos - self.pos
         if delta.length() > self.vision_range:
