@@ -1,3 +1,4 @@
+import random
 import pygame
 from combat.calculator import resolve_hit, HitZone
 from core.settings import Settings
@@ -100,5 +101,13 @@ class CombatManager:
                     player.apply_arms_debuff()
                 elif result.zone == HitZone.LEGS:
                     player.apply_legs_debuff()
+
+                bleed_chance = {
+                    HitZone.TORSO: 1.00,
+                    HitZone.ARMS:  1.00,
+                    HitZone.LEGS:  1.00,
+                }.get(result.zone, 0.0)
+                if bleed_chance > 0 and random.random() < bleed_chance:
+                    player.apply_bleeding()
 
             bullet.kill()

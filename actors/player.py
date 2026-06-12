@@ -53,6 +53,11 @@ class Player(Actor):
         self.arms_damaged: bool = False
         self.legs_damaged: bool = False
 
+        self.bleeding: bool          = False
+        self._bleed_timer: float     = 0.0
+        self._bleed_interval: float  = 1.0
+        self._bleed_damage: int      = 3
+
         self.pouch = Inventory(
             capacity=4,
             typed_slots=[ItemType.WEAPON, ItemType.WEAPON, ItemType.ARMOR],
@@ -60,6 +65,21 @@ class Player(Actor):
         )
         self.backpack = Inventory(capacity=16)
         self.active_weapon_slot: int = 0
+
+    def apply_bleeding(self) -> None:
+        self.bleeding = True
+
+    def stop_bleeding(self) -> None:
+        self.bleeding      = False
+        self._bleed_timer  = 0.0
+
+    def _update_bleeding(self, dt: float) -> None:
+        if not self.bleeding:
+            return
+        self._bleed_timer += dt
+        if self._bleed_timer >= self._bleed_interval:
+            self._bleed_timer -= self._bleed_interval
+            self.take_damage(self._bleed_damage)
 
     def apply_arms_debuff(self) -> None:
         self.arms_damaged = True
@@ -194,4 +214,5 @@ class Player(Actor):
         self._update_dash(dt)
         self._update_stamina(dt)
         self._update_footsteps(dt)
+        self._update_bleeding(dt)
         super().update(dt, walls)
