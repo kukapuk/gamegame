@@ -22,6 +22,10 @@ class Renderer:
         self._death_font_big = pygame.font.SysFont("monospace", 72, bold=True)
         self._death_font_sm  = pygame.font.SysFont("monospace", 24)
 
+        pygame.mouse.set_visible(False)
+
+    # Public entry point
+
     def draw(
         self,
         screen: pygame.Surface,
@@ -72,7 +76,10 @@ class Renderer:
 
         self._draw_save_hint(screen, save_manager)
         dialog_manager.draw(screen)
+        self._draw_cursor(screen, weapon, hud)
         pygame.display.flip()
+
+    # Private helpers
 
     def _draw_sprites(
         self, screen, camera, level,
@@ -166,3 +173,18 @@ class Renderer:
         audio_manager.draw_debug(screen, offset)
         world_manager.draw_debug(screen, offset)
         p.draw_debug(screen, offset)
+    def _draw_cursor(self, screen: pygame.Surface, weapon, hud) -> None:
+        mx, my = pygame.mouse.get_pos()
+        has_weapon = weapon and weapon.has_weapon and not hud.is_open()
+
+        if has_weapon:
+            # прицел - круг с центральной точкой
+            radius = 8
+            pygame.draw.circle(screen, (0, 0, 0),       (mx, my), radius + 1, 1)
+            pygame.draw.circle(screen, (220, 220, 220),  (mx, my), radius,     1)
+            pygame.draw.circle(screen, (220, 220, 220),  (mx, my), 2)
+        else:
+            # квадратик
+            size = 8
+            pygame.draw.rect(screen, (20, 20, 20),
+                             (mx - size // 2, my - size // 2, size, size))
