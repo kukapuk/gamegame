@@ -3,7 +3,6 @@ from core.settings import Settings
 from core.level import Level
 from core.pathfinder import Pathfinder
 from core.loot_manager import LootManager
-from actors.npc import NPC
 
 
 class WorldManager:
@@ -53,54 +52,6 @@ class WorldManager:
         self.pathfinder.build_from_walls(
             self.level.walls, self.level.cols, self.level.rows
         )
-        self._spawn_from_level()
-
-    def _spawn_from_level(self) -> None:
-        from actors.enemy import make_grunt, make_shooter
-
-        for obj in self.level.objects:
-            t     = obj["type"]
-            pos   = (obj["x"], obj["y"])
-            props = obj["props"]
-
-            if t == "enemy_grunt":
-                e = make_grunt(
-                    pos=pos, target=self.player,
-                    armor_class=props.get("armor_class", 0),
-                    groups=[self.all_sprites, self.enemies],
-                )
-                e.pathfinder    = self.pathfinder
-                e.enemies_group = self.enemies
-                patrol = self._parse_patrol(props)
-                if patrol:
-                    e.set_patrol(patrol)
-
-            elif t == "enemy_shooter":
-                e = make_shooter(
-                    pos=pos, target=self.player,
-                    armor_class=props.get("armor_class", 0),
-                    groups=[self.all_sprites, self.enemies],
-                    bullet_group=self.enemy_bullets,
-                    all_sprites=self.all_sprites,
-                )
-                e.pathfinder    = self.pathfinder
-                e.enemies_group = self.enemies
-
-            elif t == "npc":
-                NPC(
-                    pos=pos,
-                    name=props.get("npc_name", "NPC"),
-                    dialog_file=props.get("dialog_file", ""),
-                    groups=[self.all_sprites, self.npcs],
-                )
-
-    def _parse_patrol(self, props: dict) -> list:
-        points = []
-        i = 1
-        while f"patrol_x{i}" in props and f"patrol_y{i}" in props:
-            points.append((props[f"patrol_x{i}"], props[f"patrol_y{i}"]))
-            i += 1
-        return points
 
     # Update
 
