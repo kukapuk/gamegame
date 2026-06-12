@@ -35,12 +35,12 @@ class Actor(pygame.sprite.Sprite):
         self.max_hp: int = 100
         self.alive: bool = True
 
-        self.body_rect = self.rect.copy()
-        self.head_rect = self._calc_head_rect()
+        self.body_rect     = self.rect.copy()
+        self.head_rect     = self._calc_head_rect()
+        self.last_hit_zone = None   # HitZone | None
 
     def _calc_head_rect(self) -> pygame.Rect:
         sz = max(4, int(self.rect.width * self.HEAD_SIZE_RATIO))
-        # голова на половину торчит выше body_rect
         return pygame.Rect(
             self.rect.centerx - sz // 2,
             self.rect.top - sz // 2,
@@ -94,3 +94,17 @@ class Actor(pygame.sprite.Sprite):
         head = self.head_rect.move(-camera_offset.x, -camera_offset.y)
         pygame.draw.rect(surface, (255, 50,  50), body, 1)
         pygame.draw.rect(surface, (255, 220, 50), head, 1)
+
+        if self.last_hit_zone is not None:
+            font = pygame.font.SysFont("monospace", 10)
+            zone_colors = {
+                "HEAD":  (255, 220, 50),
+                "TORSO": (255, 120, 50),
+                "ARMS":  (50,  200, 255),
+                "LEGS":  (50,  255, 120),
+            }
+            name  = self.last_hit_zone.name
+            color = zone_colors.get(name, (255, 255, 255))
+            lbl   = font.render(name, True, color)
+            surface.blit(lbl, (body.centerx - lbl.get_width() // 2,
+                                body.top - lbl.get_height() - 2))

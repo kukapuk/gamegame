@@ -42,6 +42,7 @@ class CombatManager:
                     settings        = self.s,
                 )
                 enemy.take_damage(result.damage)
+                enemy.last_hit_zone = result.zone
                 enemy.take_hit_from_direction(bullet.velocity)
                 if result.stopping_effect > 0 and bullet.velocity.length() > 0:
                     enemy.apply_stopping_effect(bullet.velocity, result.stopping_effect)
@@ -92,4 +93,5 @@ class CombatManager:
                 settings        = self.s,
             )
             player.take_damage(result.damage)
+            player.last_hit_zone = result.zone
             bullet.kill()

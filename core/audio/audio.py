@@ -73,16 +73,15 @@ class AudioManager:
     def draw_debug(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         for ev in self._debug_events:
             progress = ev["lifetime"] / ev["max_life"]
-            alpha    = int(180 * progress)
+            alpha    = int(220 * progress)
             r        = int(ev["radius"])
             color    = ev.get("color", (255, 220, 80))
             cx = round(ev["pos"].x - camera_offset.x)
             cy = round(ev["pos"].y - camera_offset.y)
 
-            circle_surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-            pygame.draw.circle(circle_surf, (*color, alpha // 4), (r, r), r)
-            pygame.draw.circle(circle_surf, (*color, alpha),      (r, r), r, 1)
-            surface.blit(circle_surf, (cx - r, cy - r))
+            circle_surf = pygame.Surface((r * 2 + 2, r * 2 + 2), pygame.SRCALPHA)
+            pygame.draw.circle(circle_surf, (*color, alpha), (r + 1, r + 1), r, 1)
+            surface.blit(circle_surf, (cx - r - 1, cy - r - 1))
 
     def _generate_gunshot(self) -> pygame.mixer.Sound:
         sample_rate = 44100

@@ -383,9 +383,10 @@ class Enemy(Actor):
             points.append((round(end.x - camera_offset.x), round(end.y - camera_offset.y)))
 
         if len(points) >= 3:
-            cone_surf = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-            pygame.draw.polygon(cone_surf, color, points)
-            surface.blit(cone_surf, (0, 0))
+            color_line = color[:3] + (min(255, color[3] * 4),) if len(color) == 4 else color
+            pygame.draw.lines(surface, (*color[:3], 120), False, points[1:], 1)
+            pygame.draw.line(surface, (*color[:3], 120), points[0], points[1],  1)
+            pygame.draw.line(surface, (*color[:3], 120), points[0], points[-1], 1)
 
         blocked   = self._ray_hits_wall(self.pos, self.target.pos)
         ray_color = (255, 80, 80) if blocked else (80, 255, 80)
