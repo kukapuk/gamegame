@@ -5,9 +5,10 @@ from items.inventory import Inventory
 from items.item import ItemType
 from core.settings import Settings
 
+LEGS_SPEED_MULT = 0.6
+
 
 class StepEvent:
-    """Событие шага — передаётся в AudioManager как звуковое событие."""
     def __init__(self, pos: pygame.math.Vector2, radius: float) -> None:
         self.pos    = pygame.math.Vector2(pos)
         self.radius = radius
@@ -17,7 +18,11 @@ class Player(Actor):
     """
     Human-controlled actor.
     WASD — движение, Shift — спринт, Space — dash, Ctrl — крадёмся.
-    При крадущемся режиме скорость -20%, шагов не слышно.
+
+    Debuff конечностей:
+      arms_damaged — spread x2, reload_time x1.5
+      legs_damaged — скорость x0.6, dash недоступен
+    Снимается heal_limbs() (surgical_kit).
     """
 
     def __init__(self, pos: tuple[float, float], settings: Settings, groups: list = ()) -> None:
@@ -42,16 +47,29 @@ class Player(Actor):
         self.is_sprinting: bool    = False
         self.is_crouching: bool    = False
 
-        self._step_timer: float    = 0.0
-        self._pending_steps: list  = []   # список StepEvent за кадр
+        self._step_timer: float   = 0.0
+        self._pending_steps: list = []
 
-        self.pouch    = Inventory(
+        self.arms_damaged: bool = False
+        self.legs_damaged: bool = False
+
+        self.pouch = Inventory(
             capacity=4,
             typed_slots=[ItemType.WEAPON, ItemType.WEAPON, ItemType.ARMOR],
             owner=self,
         )
         self.backpack = Inventory(capacity=16)
         self.active_weapon_slot: int = 0
+
+    def apply_arms_debuff(self) -> None:
+        self.arms_damaged = True
+
+    def apply_legs_debuff(self) -> None:
+        self.legs_damaged = True
+
+    def heal_limbs(self) -> None:
+        self.arms_damaged = False
+        self.legs_damaged = False
 
     def get_active_weapon(self):
         weapon_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.WEAPON]
@@ -77,6 +95,8 @@ class Player(Actor):
         return True
 
     def try_dash(self) -> None:
+        if self.legs_damaged:
+            return
         if self._is_dashing or self._dash_cooldown > 0:
             return
         if self.stamina < self.stats.dash_stamina_cost:
@@ -88,11 +108,9 @@ class Player(Actor):
         self._dash_cooldown  = self.stats.dash_cooldown
         dash_speed           = self.stats.dash_distance / self.stats.dash_duration
         self._dash_velocity  = direction.normalize() * dash_speed
-        # дэш всегда издаёт звук — даже при крадущемся режиме
         self._emit_step(self.settings.step_radius_dash)
 
     def pop_step_events(self) -> list:
-        """Возвращает и очищает список звуковых событий шагов за кадр."""
         events = self._pending_steps[:]
         self._pending_steps.clear()
         return events
@@ -126,12 +144,13 @@ class Player(Actor):
         )
 
         if not self._is_dashing:
+            speed = self.speed * (LEGS_SPEED_MULT if self.legs_damaged else 1.0)
             if self.is_crouching:
-                self.velocity = direction * self.speed * self.settings.crouch_speed_mult
+                self.velocity = direction * speed * self.settings.crouch_speed_mult
             elif self.is_sprinting:
-                self.velocity = direction * self.speed * self.stats.sprint_multiplier
+                self.velocity = direction * speed * self.stats.sprint_multiplier
             else:
-                self.velocity = direction * self.speed
+                self.velocity = direction * speed
 
     def _update_dash(self, dt: float) -> None:
         self._dash_cooldown = max(0.0, self._dash_cooldown - dt)
@@ -155,11 +174,9 @@ class Player(Actor):
 
     def _update_footsteps(self, dt: float) -> None:
         moving = self._move_dir.length() > 0 and not self._is_dashing
-
         if not moving or self.is_crouching:
             self._step_timer = 0.0
             return
-
         s = self.settings
         if self.is_sprinting:
             interval = s.step_interval_sprint
@@ -167,7 +184,6 @@ class Player(Actor):
         else:
             interval = s.step_interval_walk
             radius   = s.step_radius_walk
-
         self._step_timer += dt
         if self._step_timer >= interval:
             self._step_timer = 0.0

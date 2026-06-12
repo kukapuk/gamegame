@@ -114,7 +114,10 @@ class Weapon(pygame.sprite.Sprite):
         # перезарядка снимает клин автоматически
         self._weapon_item.jammed = False
         self.reloading           = True
-        self._reload_timer       = self._weapon_item.stats.reload_time
+        reload_time = self._weapon_item.stats.reload_time
+        if getattr(self.owner, "arms_damaged", False):
+            reload_time *= 1.5
+        self._reload_timer = reload_time
 
     def try_unjam(self) -> None:
         """Q — передёрнуть затвор: снимает клин и выбрасывает патрон.
@@ -162,8 +165,9 @@ class Weapon(pygame.sprite.Sprite):
         spawn  = self.owner.pos + offset
 
         effective_spread = self._weapon_item.effective_spread()
+        arms_mult = 2.0 if getattr(self.owner, "arms_damaged", False) else 1.0
         for _ in range(s.pellets):
-            spread = effective_spread
+            spread = effective_spread * arms_mult
             if self._first_shot:
                 spread += s.first_shot_spread
             direction = self._apply_spread(self.aim_dir, spread)

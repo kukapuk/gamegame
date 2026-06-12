@@ -94,4 +94,11 @@ class CombatManager:
             )
             player.take_damage(result.damage)
             player.last_hit_zone = result.zone
+
+            if result.penetrated:
+                if result.zone == HitZone.ARMS:
+                    player.apply_arms_debuff()
+                elif result.zone == HitZone.LEGS:
+                    player.apply_legs_debuff()
+
             bullet.kill()
