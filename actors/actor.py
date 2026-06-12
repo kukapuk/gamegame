@@ -5,13 +5,12 @@ class Actor(pygame.sprite.Sprite):
     """
     Base class for every entity in the game: player, enemies, NPCs.
 
-    Два хитбокса:
-      body_rect — основной коллайдер (совпадает с rect)
-      head_rect — верхняя часть спрайта, меньше по размеру
+    Two hitboxes:
+      body_rect -- full sprite collider
+      head_rect -- sticks out above body_rect (half above, half inside)
     """
 
-    HEAD_H_RATIO = 0.40  # голова = 40% высоты спрайта
-    HEAD_W_RATIO = 0.50  # ширина головы = 50% ширины спрайта
+    HEAD_SIZE_RATIO = 0.45  # голова = 45% ширины спрайта, квадратная
 
     def __init__(
         self,
@@ -40,12 +39,12 @@ class Actor(pygame.sprite.Sprite):
         self.head_rect = self._calc_head_rect()
 
     def _calc_head_rect(self) -> pygame.Rect:
-        w = max(4, int(self.rect.width  * self.HEAD_W_RATIO))
-        h = max(4, int(self.rect.height * self.HEAD_H_RATIO))
+        sz = max(4, int(self.rect.width * self.HEAD_SIZE_RATIO))
+        # голова на половину торчит выше body_rect
         return pygame.Rect(
-            self.rect.centerx - w // 2,
-            self.rect.top,
-            w, h,
+            self.rect.centerx - sz // 2,
+            self.rect.top - sz // 2,
+            sz, sz,
         )
 
     def _update_hitboxes(self) -> None:
@@ -93,5 +92,5 @@ class Actor(pygame.sprite.Sprite):
     def draw_debug(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         body = self.body_rect.move(-camera_offset.x, -camera_offset.y)
         head = self.head_rect.move(-camera_offset.x, -camera_offset.y)
-        pygame.draw.rect(surface, (255, 50,  50), body, 1)   # красный — тело
-        pygame.draw.rect(surface, (255, 220, 50), head, 1)   # жёлтый — голова
+        pygame.draw.rect(surface, (255, 50,  50), body, 1)
+        pygame.draw.rect(surface, (255, 220, 50), head, 1)
