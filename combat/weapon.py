@@ -194,8 +194,17 @@ class Weapon(pygame.sprite.Sprite):
 
     def _update_aim(self, camera_offset: pygame.math.Vector2) -> None:
         mouse_screen = pygame.math.Vector2(pygame.mouse.get_pos())
-        mouse_world  = mouse_screen + camera_offset
-        delta = mouse_world - self.owner.pos
+        player_screen = self.owner.pos - camera_offset
+
+        if self._weapon_item and self._weapon_item.stats.aim_radius > 0:
+            radius = self._weapon_item.stats.aim_radius
+            delta  = mouse_screen - player_screen
+            if delta.length() > radius:
+                clamped     = player_screen + delta.normalize() * radius
+                mouse_screen = clamped
+                pygame.mouse.set_pos(round(clamped.x), round(clamped.y))
+
+        delta = mouse_screen - player_screen
         if delta.length() > 0:
             self.aim_dir      = delta.normalize()
             self.owner.facing = self.aim_dir.copy()

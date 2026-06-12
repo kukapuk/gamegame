@@ -76,7 +76,7 @@ class Renderer:
 
         self._draw_save_hint(screen, save_manager)
         dialog_manager.draw(screen)
-        self._draw_cursor(screen, weapon, hud)
+        self._draw_cursor(screen, weapon, hud, player, offset)
         pygame.display.flip()
 
     # Private helpers
@@ -173,18 +173,47 @@ class Renderer:
         audio_manager.draw_debug(screen, offset)
         world_manager.draw_debug(screen, offset)
         p.draw_debug(screen, offset)
-    def _draw_cursor(self, screen: pygame.Surface, weapon, hud) -> None:
+    def _draw_cursor(
+        self,
+        screen: pygame.Surface,
+        weapon,
+        hud,
+        player,
+        camera_offset: pygame.math.Vector2,
+    ) -> None:
         mx, my = pygame.mouse.get_pos()
         has_weapon = weapon and weapon.has_weapon and not hud.is_open()
 
         if has_weapon:
+            radius     = self._weapon_item_aim_radius(weapon)
+            player_scr = player.pos - camera_offset
+
+            # кольцо радиуса - тонкое, полупрозрачное
+            ring_surf = pygame.Surface(
+                (radius * 2 + 2, radius * 2 + 2), pygame.SRCALPHA
+            )
+            pygame.draw.circle(
+                ring_surf, (255, 255, 255, 35),
+                (radius + 1, radius + 1), radius, 1
+            )
+            screen.blit(
+                ring_surf,
+                (round(player_scr.x) - radius - 1,
+                 round(player_scr.y) - radius - 1),
+            )
+
             # прицел - круг с центральной точкой
-            radius = 8
-            pygame.draw.circle(screen, (0, 0, 0),       (mx, my), radius + 1, 1)
-            pygame.draw.circle(screen, (220, 220, 220),  (mx, my), radius,     1)
+            pygame.draw.circle(screen, (0, 0, 0),       (mx, my), 9, 1)
+            pygame.draw.circle(screen, (220, 220, 220),  (mx, my), 8, 1)
             pygame.draw.circle(screen, (220, 220, 220),  (mx, my), 2)
         else:
             # квадратик
             size = 8
             pygame.draw.rect(screen, (20, 20, 20),
                              (mx - size // 2, my - size // 2, size, size))
+
+    @staticmethod
+    def _weapon_item_aim_radius(weapon) -> float:
+        if weapon and weapon._weapon_item:
+            return weapon._weapon_item.stats.aim_radius
+        return 160.0

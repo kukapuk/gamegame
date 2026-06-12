@@ -24,7 +24,8 @@ class WeaponStats:
     reload_time: float
     sound_radius: float = 400.0
     recoil_distance: float = 6.0 # пикселей смещения назад при выстреле
-    recoil_recovery: float = 12.0 # скорость возврата - множитель lerp
+    recoil_recovery: float = 12.0 # скорость возврата (множитель lerp)
+    aim_radius: float = 160.0 # радиус прицеливания в экранных пикселях
 
 
 class WeaponItem(Item):
@@ -71,6 +72,7 @@ def make_carbine() -> WeaponItem:
             reload_time=2.0,
             recoil_distance=8.0, # лёгкая отдача, быстрый возврат
             recoil_recovery=14.0,
+            aim_radius=200.0, # средний радиус
         ),
     )
 
@@ -97,8 +99,9 @@ def make_shotgun() -> WeaponItem:
             ammo_type=AmmoType.SHOTGUN,
             mag_size=8,
             reload_time=2.5,
-            recoil_distance=18.0,  # сильный толчок
-            recoil_recovery=8.0,   # медленнее возвращается
+            recoil_distance=18.0,
+            recoil_recovery=8.0,
+            aim_radius=130.0, # маленький радиус - оружие ближнего боя
         ),
     )
 
@@ -125,7 +128,8 @@ def make_sniper() -> WeaponItem:
             ammo_type=AmmoType.SNIPER,
             mag_size=1,
             reload_time=3.0,
-            recoil_distance=24.0,  # резкий сильный откат
+            recoil_distance=24.0,
             recoil_recovery=6.0,
+            aim_radius=300.0, # большой радиус - дальнобойное
         ),
     )
