@@ -4,8 +4,14 @@ import pygame
 class Actor(pygame.sprite.Sprite):
     """
     Base class for every entity in the game: player, enemies, NPCs.
-    Subclasses extend with input handling (Player) or AI behaviour (Enemy).
+
+    Два хитбокса:
+      body_rect — основной коллайдер (совпадает с rect)
+      head_rect — верхняя часть спрайта, меньше по размеру
     """
+
+    HEAD_H_RATIO = 0.40  # голова = 40% высоты спрайта
+    HEAD_W_RATIO = 0.50  # ширина головы = 50% ширины спрайта
 
     def __init__(
         self,
@@ -30,6 +36,22 @@ class Actor(pygame.sprite.Sprite):
         self.max_hp: int = 100
         self.alive: bool = True
 
+        self.body_rect = self.rect.copy()
+        self.head_rect = self._calc_head_rect()
+
+    def _calc_head_rect(self) -> pygame.Rect:
+        w = max(4, int(self.rect.width  * self.HEAD_W_RATIO))
+        h = max(4, int(self.rect.height * self.HEAD_H_RATIO))
+        return pygame.Rect(
+            self.rect.centerx - w // 2,
+            self.rect.top,
+            w, h,
+        )
+
+    def _update_hitboxes(self) -> None:
+        self.body_rect = self.rect.copy()
+        self.head_rect = self._calc_head_rect()
+
     def take_damage(self, amount: int) -> None:
         self.hp = max(0, self.hp - amount)
         if self.hp == 0:
@@ -42,6 +64,7 @@ class Actor(pygame.sprite.Sprite):
         else:
             self.pos += self.velocity * dt
             self.rect.center = (round(self.pos.x), round(self.pos.y))
+        self._update_hitboxes()
 
     def _move_with_collisions(self, dt: float, walls: pygame.sprite.Group) -> None:
         self.pos.x += self.velocity.x * dt
@@ -65,7 +88,10 @@ class Actor(pygame.sprite.Sprite):
     def set_pos(self, pos: tuple[float, float]) -> None:
         self.pos.update(pos)
         self.rect.center = (round(self.pos.x), round(self.pos.y))
+        self._update_hitboxes()
 
     def draw_debug(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
-        draw_rect = self.rect.move(-camera_offset.x, -camera_offset.y)
-        pygame.draw.rect(surface, (255, 50, 50), draw_rect, 1)
+        body = self.body_rect.move(-camera_offset.x, -camera_offset.y)
+        head = self.head_rect.move(-camera_offset.x, -camera_offset.y)
+        pygame.draw.rect(surface, (255, 50,  50), body, 1)   # красный — тело
+        pygame.draw.rect(surface, (255, 220, 50), head, 1)   # жёлтый — голова
