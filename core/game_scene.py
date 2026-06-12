@@ -1,7 +1,5 @@
 import pygame
 from core.settings import Settings
-from core.camera import Camera
-from core.hud import HUD
 from core.audio import AudioManager
 from core.save_manager import SaveManager
 from core.dialog_manager import DialogManager
@@ -14,20 +12,27 @@ from core.renderer import Renderer
 from core.input_handler import InputHandler
 
 
-class Game:
+class GameScene:
     """
-    оркестратор: владеет системами, запускает цикл.
-    Вся логика делегирована спец менеджерам.
+    Игровая сцена: владеет всеми системами и игровым состоянием.
+    Не знает об окне и clock — получает их от App.
+
+    Интерфейс для App:
+        scene.update(dt)  → False если сцена хочет завершиться
+        scene.draw()
     """
 
     FIRST_LEVEL = "levels/level_1.tmx"
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        screen:   pygame.Surface,
+        clock:    pygame.time.Clock,
+    ) -> None:
         self.settings = settings
-        self.screen   = pygame.display.set_mode((settings.screen_width, settings.screen_height))
-        pygame.display.set_caption(settings.title)
-        self.clock   = pygame.time.Clock()
-        self.running = True
+        self.screen   = screen
+        self.clock    = clock
 
         # Группы спрайтов
         self.all_sprites   = pygame.sprite.Group()
@@ -38,10 +43,10 @@ class Game:
         self.npcs          = pygame.sprite.Group()
 
         # Системы
-        self.loot   = LootManager(self.world_items)
-        self.combat = CombatManager(settings)
-        self.audio  = AudioManager(settings)
-        self.dialog = DialogManager(settings)
+        self.loot         = LootManager(self.world_items)
+        self.combat       = CombatManager(settings)
+        self.audio        = AudioManager(settings)
+        self.dialog       = DialogManager(settings)
         self.save_manager = SaveManager()
 
         self.world = WorldManager(
@@ -74,31 +79,54 @@ class Game:
             spawn_manager=self.spawn,
         )
 
-        self.renderer      = Renderer(settings, self.clock)
+        self.renderer      = Renderer(settings, clock)
         self.input_handler = InputHandler(settings)
 
+        self.running     = True
         self.debug       = False
         self.player_dead = False
 
-        # Загружаем первый уровень
         self.player, self.weapon, self.camera, self.hud = \
             self.level_loader.load(self.FIRST_LEVEL)
 
-    # Main loop
+    # App interface
 
-    def run(self) -> None:
-        while self.running:
-            dt  = self.clock.tick(self.settings.fps) / 1000.0
-            inp = self.input_handler.process(
-                dt,
-                player_dead   = self.player_dead,
-                dialog_active = self.dialog.active,
-                hud_open      = self.hud.is_open(),
-            )
-            self._apply_input(inp)
-            if not self.player_dead:
-                self._update(dt)
-            self._draw(inp.i_hold_progress)
+    def update(self, dt: float) -> bool:
+        """Обновляет сцену. Возвращает False когда нужно выйти."""
+        inp = self.input_handler.process(
+            dt,
+            player_dead   = self.player_dead,
+            dialog_active = self.dialog.active,
+            hud_open      = self.hud.is_open(),
+        )
+        self._apply_input(inp)
+        if not self.player_dead:
+            self._update(dt)
+        self.draw(inp.i_hold_progress)
+        return self.running
+
+    def draw(self, i_hold_progress: float = 0.0) -> None:
+        self.renderer.draw(
+            self.screen,
+            level           = self.world.level,
+            camera          = self.camera,
+            player          = self.player,
+            weapon          = self.weapon,
+            enemies         = self.enemies,
+            bullets         = self.bullets,
+            enemy_bullets   = self.enemy_bullets,
+            world_items     = self.world_items,
+            npcs            = self.npcs,
+            hud             = self.hud,
+            world_manager   = self.world,
+            loot_manager    = self.loot,
+            dialog_manager  = self.dialog,
+            save_manager    = self.save_manager,
+            audio_manager   = self.audio,
+            i_hold_progress = i_hold_progress,
+            player_dead     = self.player_dead,
+            debug           = self.debug,
+        )
 
     # Input
 
@@ -236,28 +264,3 @@ class Game:
         item = self.player.get_active_weapon()
         if item is not self.weapon._weapon_item:
             self.weapon.equip(item if item else None)
-
-    # Draw
-
-    def _draw(self, i_hold_progress: float = 0.0) -> None:
-        self.renderer.draw(
-            self.screen,
-            level           = self.world.level,
-            camera          = self.camera,
-            player          = self.player,
-            weapon          = self.weapon,
-            enemies         = self.enemies,
-            bullets         = self.bullets,
-            enemy_bullets   = self.enemy_bullets,
-            world_items     = self.world_items,
-            npcs            = self.npcs,
-            hud             = self.hud,
-            world_manager   = self.world,
-            loot_manager    = self.loot,
-            dialog_manager  = self.dialog,
-            save_manager    = self.save_manager,
-            audio_manager   = self.audio,
-            i_hold_progress = i_hold_progress,
-            player_dead     = self.player_dead,
-            debug           = self.debug,
-        )

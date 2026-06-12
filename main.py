@@ -1,13 +1,11 @@
 import pygame
 from core.settings import Settings
-from core.game import Game
+from core.app import App
 
 
 def main():
     pygame.init()
-    settings = Settings()
-    game = Game(settings)
-    game.run()
+    App(Settings()).run()
     pygame.quit()
 
 
