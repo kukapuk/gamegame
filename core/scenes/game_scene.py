@@ -196,6 +196,8 @@ class GameScene:
                 )
                 self.loot.spawn(result["drop_item"], drop_pos)
             self._sync_weapon()
+        if inp.rmb_down:
+            self.hud.handle_rmb(pygame.mouse.get_pos())
         if inp.mouse_motion:
             pos = pygame.mouse.get_pos()
             self.hud.handle_mouse_motion(pos)
@@ -262,7 +264,9 @@ class GameScene:
             for enemy in self.enemies:
                 enemy.hear_sound(step.pos, step.radius)
 
+    # ------------------------------------------------------------------ #
     # Level transitions
+    # ------------------------------------------------------------------ #
 
     def _transition_level(self, target: str) -> None:
         self.world.consume_pending_level()

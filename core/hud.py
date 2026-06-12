@@ -57,6 +57,8 @@ class HUD:
 
         self._backpack_slot_rects: list      = []
         self._pouch_panel_slot_rects: list   = []
+        self._info_panels: list              = []   # список открытых инфо-панелей
+        self._hovered_item                   = None  # предмет под курсором
 
         ss      = self.SLOT_SIZE
         pad     = self.SLOT_PAD
@@ -85,14 +87,22 @@ class HUD:
             if self._drag.source_slot:
                 self._drag.source_slot.item = self._drag.item
             self._drag = None
-        self._panel_dragging     = False
-        self._hovered_world_item = None
+        self._panel_dragging        = False
+        self._hovered_world_item    = None
+        self._hovered_rect          = None
+        self._tooltip_text          = ""
+        self._backpack_slot_rects   = []
+        self._pouch_panel_slot_rects = []
+        self._info_panels           = []
 
     def is_open(self) -> bool:
         return self.backpack_open
 
     def handle_mouse_down(self, pos: tuple) -> None:
         if not self.backpack_open:
+            return
+        # сначала проверяем инфо-панели
+        if self.handle_info_panels_mouse_down(pos):
             return
         if self._backpack_title_rect().collidepoint(pos):
             self._panel_dragging = True
@@ -145,6 +155,7 @@ class HUD:
 
     def handle_mouse_up(self, pos: tuple) -> dict:
         result = {"kill_world_item": None, "drop_item": None}
+        self.handle_info_panels_mouse_up()
 
         if self._panel_dragging:
             self._panel_dragging = False
@@ -163,8 +174,10 @@ class HUD:
                 if (isinstance(drag_item, CleaningKit)
                         and isinstance(target_item, WeaponItem)):
                     drag_item.apply_to_weapon(target_item)
-                    if self._drag.source_world_item:
-                        result["kill_world_item"] = self._drag.source_world_item
+                    # возвращаем kit обратно в источник (он не расходуется полностью
+                    # — можно сделать расходуемым, убрав эту строку)
+                    if self._drag.source_slot:
+                        self._drag.source_slot.item = drag_item
                     self._drag = None
                     return result
 
@@ -218,6 +231,7 @@ class HUD:
         return result
 
     def handle_mouse_motion(self, pos: tuple) -> None:
+        self.handle_info_panels_mouse_motion(pos)
         if self._panel_dragging:
             pw, ph  = self._backpack_panel_size
             new_x   = max(0, min(pos[0] - self._panel_drag_offset.x, self.s.screen_width  - pw))
@@ -247,6 +261,7 @@ class HUD:
         if i_hold_progress > 0:
             self._draw_i_progress(screen, i_hold_progress)
         self._draw_tooltip(screen, pygame.mouse.get_pos())
+        self.draw_info_panels(screen)
 
     def draw_world_hover(self, screen: pygame.Surface, camera_offset) -> None:
         if not self._hovered_world_item or not self.backpack_open:
@@ -516,3 +531,154 @@ class HUD:
         if item.jammed:
             j = self.font_sm.render("J", True, (220, 60, 60))
             screen.blit(j, (rect.x + 3, rect.y + 3))
+
+    # Hover tooltip (короткий)
+
+    def _get_item_at(self, pos: tuple):
+        """Возвращает предмет под курсором в любом открытом слоте."""
+        for slot, rect in self._all_interactive_rects():
+            if rect.collidepoint(pos) and not slot.empty:
+                return slot.item
+        return None
+
+    # RMB — открыть инфо-панель
+
+    def handle_rmb(self, pos: tuple) -> None:
+        if not self.backpack_open:
+            return
+        item = self._get_item_at(pos)
+        if item is None:
+            return
+        # не открывать дубликат той же панели
+        for panel in self._info_panels:
+            if panel["item"] is item:
+                return
+        pw, ph = 220, 140
+        # позиция — рядом с курсором, не выходить за экран
+        px = min(pos[0] + 8, self.s.screen_width  - pw - 4)
+        py = min(pos[1] + 8, self.s.screen_height - ph - 4)
+        self._info_panels.append({
+            "item":      item,
+            "pos":       pygame.Vector2(px, py),
+            "size":      (pw, ph),
+            "dragging":  False,
+            "drag_off":  pygame.Vector2(0, 0),
+        })
+
+    def handle_info_panels_mouse_down(self, pos: tuple) -> bool:
+        """ЛКМ по панели — начать перетаскивание или закрыть по X.
+        Возвращает True если клик был поглощён панелью."""
+        for panel in reversed(self._info_panels):
+            px, py = int(panel["pos"].x), int(panel["pos"].y)
+            pw, ph = panel["size"]
+            # кнопка X (верхний правый угол)
+            x_rect = pygame.Rect(px + pw - 16, py + 2, 14, 14)
+            if x_rect.collidepoint(pos):
+                self._info_panels.remove(panel)
+                return True
+            # заголовок — перетаскивание
+            title_rect = pygame.Rect(px, py, pw, 20)
+            if title_rect.collidepoint(pos):
+                panel["dragging"] = True
+                panel["drag_off"].update(pos[0] - px, pos[1] - py)
+                return True
+        return False
+
+    def handle_info_panels_mouse_up(self) -> None:
+        for panel in self._info_panels:
+            panel["dragging"] = False
+
+    def handle_info_panels_mouse_motion(self, pos: tuple) -> None:
+        for panel in self._info_panels:
+            if panel["dragging"]:
+                pw, ph = panel["size"]
+                nx = max(0, min(pos[0] - panel["drag_off"].x, self.s.screen_width  - pw))
+                ny = max(0, min(pos[1] - panel["drag_off"].y, self.s.screen_height - ph))
+                panel["pos"].update(nx, ny)
+
+    def update_info_panels_hover(self, pos: tuple) -> None:
+        """Закрывает панель если курсор ушёл далеко за её пределы."""
+        for panel in self._info_panels[:]:
+            px, py = int(panel["pos"].x), int(panel["pos"].y)
+            pw, ph = panel["size"]
+            expanded = pygame.Rect(px - 40, py - 40, pw + 80, ph + 80)
+            if not expanded.collidepoint(pos):
+                self._info_panels.remove(panel)
+
+    # Draw инфо-панелей
+
+    def draw_info_panels(self, screen: pygame.Surface) -> None:
+        if not self.backpack_open:
+            return
+        for panel in self._info_panels:
+            self._draw_info_panel(screen, panel)
+
+    def _draw_info_panel(self, screen: pygame.Surface, panel: dict) -> None:
+        item  = panel["item"]
+        px    = int(panel["pos"].x)
+        py    = int(panel["pos"].y)
+        pw, ph = panel["size"]
+        pad   = 8
+
+        # фон
+        surf = pygame.Surface((pw, ph), pygame.SRCALPHA)
+        surf.fill((16, 18, 30, 235))
+        screen.blit(surf, (px, py))
+        pygame.draw.rect(screen, (60, 65, 100), (px, py, pw, ph), 1, border_radius=6)
+
+        # заголовок
+        pygame.draw.rect(screen, (28, 32, 52), (px, py, pw, 22), border_radius=6)
+        name_surf = self.font_md.render(item.name, True, (200, 205, 225))
+        screen.blit(name_surf, (px + pad, py + 4))
+
+        # кнопка X
+        x_rect = pygame.Rect(px + pw - 16, py + 2, 14, 14)
+        pygame.draw.rect(screen, (60, 40, 40), x_rect, border_radius=3)
+        x_lbl = self.font_sm.render("x", True, (200, 120, 120))
+        screen.blit(x_lbl, x_lbl.get_rect(center=x_rect.center))
+
+        # иконка
+        icon = pygame.transform.scale(item.icon, (36, 36))
+        screen.blit(icon, (px + pad, py + 28))
+
+        # характеристики
+        lines = self._item_info_lines(item)
+        ty = py + 28
+        for line in lines:
+            lbl = self.font_sm.render(line, True, (170, 175, 195))
+            screen.blit(lbl, (px + pad + 42, ty))
+            ty += 14
+
+    def _item_info_lines(self, item) -> list[str]:
+        from items.weapon_item import WeaponItem
+        from items.ammo import AmmoItem
+        from items.armor import Armor
+        from items.consumable import Consumable
+        from items.cleaning_kit import CleaningKit
+
+        if isinstance(item, WeaponItem):
+            s = item.stats
+            return [
+                f"DMG:    {s.damage}",
+                f"AP:     {s.armor_pen}",
+                f"Mag:    {item.mag_current}/{s.mag_size}",
+                f"Clean:  {int(item.cleanliness * 100)}%",
+                f"Fire:   {'auto' if s.auto_fire else 'semi'}",
+                f"Reload: {s.reload_time}s",
+            ]
+        if isinstance(item, AmmoItem):
+            return [
+                f"Type:  {item.ammo_type.name}",
+                f"Count: {item.stack_count}/{item.max_stack}",
+            ]
+        if isinstance(item, Armor):
+            return [
+                f"Tier:   {item.tier}",
+                f"Dash:   x{item.dash_stamina_mult:.2f}",
+                f"Sprint: {item.sprint_stamina_drain}/s",
+            ]
+        if isinstance(item, CleaningKit):
+            return [f"Restores: +{int(item.heal_amount * 100)}% clean"]
+        if isinstance(item, Consumable):
+            return [item.get_tooltip()]
+        return [item.get_tooltip()]

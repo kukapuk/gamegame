@@ -26,6 +26,7 @@ class InputResult:
     # mouse — заполняются независимо от режима
     lmb_down: bool = False
     lmb_up:   bool = False
+    rmb_down: bool = False
     mouse_motion: bool = False
 
     # hold-прогресс рюкзака (0.0 → 1.0)
@@ -115,6 +116,8 @@ class InputHandler:
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     result.lmb_down = True
+                elif event.button == 3:
+                    result.rmb_down = True
 
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
