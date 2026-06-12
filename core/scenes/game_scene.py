@@ -1,12 +1,12 @@
 import pygame
 from core.settings import Settings
 from core.audio import AudioManager
-from core.save_manager import SaveManager
-from core.dialog_manager import DialogManager
-from core.loot_manager import LootManager
-from core.combat_manager import CombatManager
-from core.world_manager import WorldManager
-from core.spawn_manager import SpawnManager
+from core.managers.save_manager import SaveManager
+from core.managers.dialog_manager import DialogManager
+from core.managers.loot_manager import LootManager
+from core.managers.combat_manager import CombatManager
+from core.managers.world_manager import WorldManager
+from core.managers.spawn_manager import SpawnManager
 from core.level_loader import LevelLoader
 from core.renderer import Renderer
 from core.input_handler import InputHandler
@@ -82,7 +82,6 @@ class GameScene:
         self.renderer      = Renderer(settings, clock)
         self.input_handler = InputHandler(settings)
 
-        self.running     = True
         self.debug       = False
         self.player_dead = False
 
@@ -91,19 +90,26 @@ class GameScene:
 
     # App interface
 
-    def update(self, dt: float) -> bool:
-        """Обновляет сцену. Возвращает False когда нужно выйти."""
+    def update(self, dt: float) -> str:
+        """
+        Обновляет сцену. Возвращает:
+            "running" — продолжаем
+            "pause"   — запросить паузу
+            "quit"    — выйти
+        """
         inp = self.input_handler.process(
             dt,
             player_dead   = self.player_dead,
             dialog_active = self.dialog.active,
             hud_open      = self.hud.is_open(),
         )
-        self._apply_input(inp)
+        result = self._apply_input(inp)
+        if result in ("pause", "quit"):
+            return result
         if not self.player_dead:
             self._update(dt)
         self.draw(inp.i_hold_progress)
-        return self.running
+        return "running"
 
     def draw(self, i_hold_progress: float = 0.0) -> None:
         self.renderer.draw(
@@ -130,13 +136,12 @@ class GameScene:
 
     # Input
 
-    def _apply_input(self, inp) -> None:
+    def _apply_input(self, inp) -> str:
         if inp.quit:
-            self.running = False
-            return
+            return "pause"   # ESC → пауза
         if inp.restart:
             self._restart()
-            return
+            return "running"
 
         if getattr(inp, "toggle_backpack", False):
             if self.hud.is_open():
@@ -151,7 +156,7 @@ class GameScene:
 
         if inp.dialog_key != -1:
             self.dialog.handle_key(inp.dialog_key)
-            return
+            return "running"
 
         if inp.switch_weapon != -1:
             self.player.switch_weapon(inp.switch_weapon)
@@ -195,6 +200,8 @@ class GameScene:
             pos = pygame.mouse.get_pos()
             self.hud.handle_mouse_motion(pos)
             self.hud.update_world_hover(pos, self.world_items, self.camera.get_offset())
+
+        return "running"
 
     def _handle_interact(self) -> None:
         nearby_npc = self.world.get_nearby_npc()

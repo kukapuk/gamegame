@@ -2,7 +2,7 @@ import pygame
 from core.settings import Settings
 from core.camera import Camera
 from core.hud import HUD
-from core.spawn_manager import SpawnManager
+from core.managers.spawn_manager import SpawnManager
 
 
 class LevelLoader:

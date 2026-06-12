@@ -2,7 +2,7 @@ import pygame
 from core.settings import Settings
 from core.level import Level
 from core.pathfinder import Pathfinder
-from core.loot_manager import LootManager
+from core.managers.loot_manager import LootManager
 
 
 class WorldManager:
