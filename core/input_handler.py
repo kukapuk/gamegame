@@ -12,7 +12,7 @@ class InputResult:
     quit:           bool = False
     restart:        bool = False
     toggle_debug:   bool = False
-    switch_weapon:  int  = -1          # 0 / 1, или -1 = нет переключения 
+    switch_weapon:  int  = -1          # 0 / 1, или -1 = нет переключения
     dash:           bool = False
     reload:         bool = False
     interact:       bool = False       # E
@@ -30,6 +30,9 @@ class InputResult:
 
     # hold-прогресс рюкзака (0.0 → 1.0)
     i_hold_progress: float = 0.0
+
+    # actions
+    unjam: bool = False
 
 
 class InputHandler:
@@ -63,6 +66,8 @@ class InputHandler:
 
         return result
 
+    # Hold-таймер рюкзака
+
     def _update_i_hold(
         self, dt: float, dialog_active: bool, result: InputResult,
     ) -> None:
@@ -77,7 +82,7 @@ class InputHandler:
             if (self._i_held_time >= self.s.backpack_hold_time
                     and not self._i_triggered):
                 self._i_triggered = True
-                result.toggle_backpack = True
+                result.toggle_backpack = True   # Game сам разберётся open/close
         else:
             self._i_held_time = 0.0
             self._i_triggered = False
@@ -86,12 +91,16 @@ class InputHandler:
             self._i_held_time / self.s.backpack_hold_time, 1.0
         )
 
+    # Dead-screen: любая клавиша / клик → рестарт
+
     def _process_dead(self, result: InputResult) -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 result.quit = True
             elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
                 result.restart = True
+
+    # Normal play
 
     def _process_alive(
         self, result: InputResult, dialog_active: bool, hud_open: bool,
@@ -137,6 +146,8 @@ class InputHandler:
             result.dash = True
         elif key == pygame.K_r:
             result.reload = True
+        elif key == pygame.K_q:
+            result.unjam = True
         elif key == pygame.K_e:
             result.interact = True
         elif key == pygame.K_g:

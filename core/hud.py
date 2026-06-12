@@ -157,6 +157,17 @@ class HUD:
                 drag_item   = self._drag.item
                 target_item = slot.item
 
+                # --- CleaningKit на оружие ---
+                from items.cleaning_kit import CleaningKit
+                from items.weapon_item import WeaponItem
+                if (isinstance(drag_item, CleaningKit)
+                        and isinstance(target_item, WeaponItem)):
+                    drag_item.apply_to_weapon(target_item)
+                    if self._drag.source_world_item:
+                        result["kill_world_item"] = self._drag.source_world_item
+                    self._drag = None
+                    return result
+
                 if (target_item and drag_item.stackable
                         and type(target_item) == type(drag_item)
                         and hasattr(target_item, 'ammo_type')
@@ -282,11 +293,28 @@ class HUD:
         x       = ox + slots_w + 12
         y       = self._bar_baseline() - ss
 
+        if weapon.jammed:
+            # JAMMED — мигающий красный, подсказка
+            lbl = self.font_md.render("JAMMED", True, (220, 60, 60))
+            screen.blit(lbl, (x, y + (ss - lbl.get_height()) // 2))
+            hint = self.font_sm.render("[R] reload  [Q] unjam", True, (160, 80, 80))
+            screen.blit(hint, (x, y + (ss - hint.get_height()) // 2 + 14))
+            return
+
+        if weapon.unjamming:
+            progress = 1.0 - weapon._unjam_timer / 0.5
+            bw, bh   = 90, 5
+            pygame.draw.rect(screen, (40, 40, 60),   (x, y + ss - bh - 2, bw, bh))
+            pygame.draw.rect(screen, (200, 100, 40), (x, y + ss - bh - 2, int(bw * progress), bh))
+            lbl = self.font_md.render("CYCLING...", True, (200, 120, 60))
+            screen.blit(lbl, (x, y + (ss - lbl.get_height()) // 2))
+            return
+
         if weapon.reloading:
             progress = 1.0 - weapon._reload_timer / weapon._weapon_item.stats.reload_time
             bw, bh   = 90, 5
-            pygame.draw.rect(screen, (40, 40, 60),    (x, y + ss - bh - 2, bw, bh))
-            pygame.draw.rect(screen, (180, 140, 40),  (x, y + ss - bh - 2, int(bw * progress), bh))
+            pygame.draw.rect(screen, (40, 40, 60),   (x, y + ss - bh - 2, bw, bh))
+            pygame.draw.rect(screen, (180, 140, 40), (x, y + ss - bh - 2, int(bw * progress), bh))
             lbl = self.font_md.render("RELOADING", True, (220, 180, 60))
         else:
             text  = f"{weapon.mag_current} / {weapon.mag_size}"
@@ -294,6 +322,23 @@ class HUD:
             lbl   = self.font_md.render(text, True, color)
 
         screen.blit(lbl, (x, y + (ss - lbl.get_height()) // 2))
+
+        # полоска чистоты оружия
+        wi = weapon._weapon_item
+        if wi:
+            bw, bh = 90, 3
+            by2    = y + ss - bh - 2
+            clean  = wi.cleanliness
+            if clean >= 0.75:
+                bar_color = (80, 180, 80)
+            elif clean >= 0.5:
+                bar_color = (200, 180, 40)
+            elif clean >= 0.25:
+                bar_color = (220, 120, 40)
+            else:
+                bar_color = (200, 50, 50)
+            pygame.draw.rect(screen, (30, 30, 50),  (x, by2, bw, bh))
+            pygame.draw.rect(screen, bar_color,     (x, by2, int(bw * clean), bh))
 
     def _draw_i_progress(self, screen: pygame.Surface, progress: float) -> None:
         bw, bh = 120, 6
@@ -420,6 +465,7 @@ class HUD:
                 if slot.item.stackable and slot.item.stack_count > 1:
                     cnt = self.font_sm.render(str(slot.item.stack_count), True, (200, 200, 160))
                     screen.blit(cnt, (r.right - cnt.get_width() - 3, r.bottom - cnt.get_height() - 2))
+                self._draw_weapon_condition(screen, slot.item, r)
 
     def _draw_dragged_item(self, screen: pygame.Surface) -> None:
         mx, my = pygame.mouse.get_pos()
@@ -445,3 +491,28 @@ class HUD:
         if slot and not slot.empty:
             icon = pygame.transform.scale(slot.item.icon, (rect.width - 4, rect.height - 4))
             screen.blit(icon, icon.get_rect(center=rect.center))
+            self._draw_weapon_condition(screen, slot.item, rect)
+
+    def _draw_weapon_condition(self, screen: pygame.Surface, item, rect: pygame.Rect) -> None:
+        """Полоска чистоты + иконка клина поверх слота с оружием."""
+        from items.weapon_item import WeaponItem
+        if not isinstance(item, WeaponItem):
+            return
+        clean = item.cleanliness
+        bw    = rect.width - 4
+        bh    = 3
+        bx    = rect.x + 2
+        by    = rect.bottom - bh - 2
+        if clean >= 0.75:
+            bar_color = (80, 180, 80)
+        elif clean >= 0.5:
+            bar_color = (200, 180, 40)
+        elif clean >= 0.25:
+            bar_color = (220, 120, 40)
+        else:
+            bar_color = (200, 50, 50)
+        pygame.draw.rect(screen, (20, 20, 30),  (bx, by, bw, bh))
+        pygame.draw.rect(screen, bar_color,     (bx, by, int(bw * clean), bh))
+        if item.jammed:
+            j = self.font_sm.render("J", True, (220, 60, 60))
+            screen.blit(j, (rect.x + 3, rect.y + 3))

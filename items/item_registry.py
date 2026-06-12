@@ -1,6 +1,7 @@
 from items.consumable import make_medkit
 from items.armor import make_light_armor, make_medium_armor, make_heavy_armor, Armor
 from items.ammo import make_ammo, AmmoType
+from items.cleaning_kit import make_cleaning_kit
 
 
 REGISTRY: dict = {
@@ -13,6 +14,7 @@ REGISTRY: dict = {
     "ammo_carbine":    lambda count=1: make_ammo(AmmoType.CARBINE, count),
     "ammo_shotgun":    lambda count=1: make_ammo(AmmoType.SHOTGUN, count),
     "ammo_sniper":     lambda count=1: make_ammo(AmmoType.SNIPER,  count),
+    "cleaning_kit":    lambda: make_cleaning_kit(0.5),
 }
 
 WEAPON_REGISTRY: dict = {}
@@ -35,6 +37,9 @@ def serialize_item(item) -> dict | None:
 
     if isinstance(item, Consumable):
         return {"type": "medkit", "heal": 30}
+    from items.cleaning_kit import CleaningKit
+    if isinstance(item, CleaningKit):
+        return {"type": "cleaning_kit", "heal": item.heal_amount}
     if isinstance(item, Armor):
         return {"type": "armor", "tier": item.tier}
     if isinstance(item, AmmoItem):
@@ -50,6 +55,8 @@ def deserialize_item(data: dict):
     t = data.get("type")
     if t == "medkit":
         return make_medkit(data.get("heal", 30))
+    if t == "cleaning_kit":
+        return make_cleaning_kit(data.get("heal", 0.5))
     if t == "armor":
         return Armor(tier=data.get("tier", 0))
     if t == "ammo":

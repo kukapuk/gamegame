@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from items.item import Item, ItemType
 from items.ammo import AmmoType
 
@@ -22,16 +22,31 @@ class WeaponStats:
     ammo_type: AmmoType
     mag_size: int
     reload_time: float
-    sound_radius: float = 400.0
-    recoil_distance: float = 6.0 # пикселей смещения назад при выстреле
-    recoil_recovery: float = 12.0 # скорость возврата (множитель lerp)
-    aim_radius: float = 160.0 # радиус прицеливания в экранных пикселях
+    sound_radius: float    = 400.0
+    recoil_distance: float = 6.0
+    recoil_recovery: float = 12.0
+    aim_radius: float      = 160.0
+
+    # загрязнение
+    dirt_per_shot:     float = 0.008  # деградация за выстрел
+    first_shot_spread: float = 3.0    # доп. разброс первого выстрела (градусы)
+    jam_chance_low:    float = 0.03   # шанс клина при cleanliness 0.25–0.5
+    jam_chance_high:   float = 0.10   # шанс клина при cleanliness < 0.25
+
+
+# Пороги cleanliness
+CLEAN_THRESHOLD  = 0.75 # выше — всё нормально
+DIRTY_THRESHOLD  = 0.50 # ниже — spread × 1.5, first_shot активен
+FILTHY_THRESHOLD = 0.25 # ниже — spread × 2.5, шанс клина low
+# ниже 0.0 — spread × 4,  шанс клина high
 
 
 class WeaponItem(Item):
     """
     Оружие как предмет инвентаря.
-    Хранит все характеристики стрельбы — Weapon-спрайт читает их отсюда.
+    stats       — константы оружия (урон, скорострельность и т.д.)
+    cleanliness — runtime состояние: 1.0 чистое → 0.0 засранное
+    jammed      — заклинено, не стреляет
     """
 
     def __init__(self, name: str, stats: WeaponStats, icon_color: tuple) -> None:
@@ -41,11 +56,35 @@ class WeaponItem(Item):
             icon_color=icon_color,
             stackable=False,
         )
-        self.stats = stats
-        self.mag_current: int = -1
+        self.stats       = stats
+        self.mag_current: int   = -1
+        self.cleanliness: float = 1.0
+        self.jammed:      bool  = False
+
+    def effective_spread(self) -> float:
+        """Итоговый разброс с учётом загрязнения."""
+        base = self.stats.spread
+        if self.cleanliness >= DIRTY_THRESHOLD:
+            return base
+        if self.cleanliness >= FILTHY_THRESHOLD:
+            return base * 2.5
+        return base * 4.0
+
+    def jam_chance(self) -> float:
+        if self.cleanliness >= DIRTY_THRESHOLD:
+            return 0.0
+        if self.cleanliness >= FILTHY_THRESHOLD:
+            return self.stats.jam_chance_low
+        return self.stats.jam_chance_high
 
     def get_tooltip(self) -> str:
-        return f"{self.name}  DMG:{self.stats.damage}  AP:{self.stats.armor_pen}  SE:{int(self.stats.stopping_effect * 100)}%"
+        clean_pct = int(self.cleanliness * 100)
+        jam_str   = "  [JAMMED]" if self.jammed else ""
+        return (
+            f"{self.name}  DMG:{self.stats.damage}  "
+            f"AP:{self.stats.armor_pen}  "
+            f"clean:{clean_pct}%{jam_str}"
+        )
 
 
 def make_carbine() -> WeaponItem:
@@ -60,7 +99,7 @@ def make_carbine() -> WeaponItem:
             armor_pen=2,
             stopping_effect=0.3,
             auto_fire=True,
-            spread=6.0, # ощутимый разброс при автоогне
+            spread=6.0,
             pellets=1,
             width=22,
             height=8,
@@ -70,9 +109,13 @@ def make_carbine() -> WeaponItem:
             ammo_type=AmmoType.CARBINE,
             mag_size=30,
             reload_time=2.0,
-            recoil_distance=8.0, # лёгкая отдача, быстрый возврат
+            recoil_distance=8.0,
             recoil_recovery=14.0,
-            aim_radius=200.0, # средний радиус
+            aim_radius=200.0,
+            dirt_per_shot=0.008,      # ~125 выстрелов до нуля
+            first_shot_spread=4.0,
+            jam_chance_low=0.03,
+            jam_chance_high=0.10,
         ),
     )
 
@@ -101,7 +144,11 @@ def make_shotgun() -> WeaponItem:
             reload_time=2.5,
             recoil_distance=18.0,
             recoil_recovery=8.0,
-            aim_radius=130.0, # маленький радиус - оружие ближнего боя
+            aim_radius=130.0,
+            dirt_per_shot=0.015,      # ~65 выстрелов, грязнится быстрее
+            first_shot_spread=6.0,
+            jam_chance_low=0.04,
+            jam_chance_high=0.12,
         ),
     )
 
@@ -130,6 +177,10 @@ def make_sniper() -> WeaponItem:
             reload_time=3.0,
             recoil_distance=24.0,
             recoil_recovery=6.0,
-            aim_radius=300.0, # большой радиус - дальнобойное
+            aim_radius=300.0,
+            dirt_per_shot=0.004,      # ~250 выстрелов, грязнится медленно
+            first_shot_spread=2.0,
+            jam_chance_low=0.02,
+            jam_chance_high=0.07,
         ),
     )

@@ -160,6 +160,8 @@ class GameScene:
             self.player.try_dash()
         if inp.reload:
             self.weapon.try_reload()
+        if inp.unjam:
+            self.weapon.try_unjam()
         if inp.interact:
             self._handle_interact()
         if inp.drop_weapon:
@@ -264,4 +266,3 @@ class GameScene:
         item = self.player.get_active_weapon()
         if item is not self.weapon._weapon_item:
             self.weapon.equip(item if item else None)
-    
