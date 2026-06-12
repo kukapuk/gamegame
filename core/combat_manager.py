@@ -47,8 +47,23 @@ class CombatManager:
                     enemy.apply_stopping_effect(bullet.velocity, se)
 
     def _check_bullet_wall_hits(self, bullets, enemy_bullets, walls) -> None:
-        pygame.sprite.groupcollide(bullets,       walls, True, False)
+        # вражеские пули — всегда уничтожаются
         pygame.sprite.groupcollide(enemy_bullets, walls, True, False)
+
+        # пули игрока: без рикошета — быстрый groupcollide
+        # с рикошетом — проверяем вручную только их
+        normal_bullets   = [b for b in bullets if not b.can_ricochet or b.ricocheted]
+        ricochet_bullets = [b for b in bullets if b.can_ricochet and not b.ricocheted]
+
+        for bullet in normal_bullets:
+            if pygame.sprite.spritecollide(bullet, walls, False):
+                bullet.kill()
+
+        for bullet in ricochet_bullets:
+            hit_walls = pygame.sprite.spritecollide(bullet, walls, False)
+            if hit_walls:
+                if not bullet.do_ricochet(hit_walls[0].rect):
+                    bullet.kill()
 
     def _check_contact_damage(self, player, enemies) -> None:
         armor_class = player.get_armor_class()

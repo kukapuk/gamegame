@@ -27,18 +27,23 @@ class WeaponStats:
     recoil_recovery: float = 12.0
     aim_radius: float      = 160.0
 
-    # загрязнение
+    # --- загрязнение ---
     dirt_per_shot:     float = 0.008  # деградация за выстрел
     first_shot_spread: float = 3.0    # доп. разброс первого выстрела (градусы)
     jam_chance_low:    float = 0.03   # шанс клина при cleanliness 0.25–0.5
     jam_chance_high:   float = 0.10   # шанс клина при cleanliness < 0.25
 
+    # рикошет
+    ricochet:             bool  = False
+    ricochet_spread:      float = 8.0
+    ricochet_damage_mult: float = 0.7
+
 
 # Пороги cleanliness
-CLEAN_THRESHOLD  = 0.75 # выше — всё нормально
-DIRTY_THRESHOLD  = 0.50 # ниже — spread × 1.5, first_shot активен
-FILTHY_THRESHOLD = 0.25 # ниже — spread × 2.5, шанс клина low
-# ниже 0.0 — spread × 4,  шанс клина high
+CLEAN_THRESHOLD  = 0.75   # выше — всё нормально
+DIRTY_THRESHOLD  = 0.50   # ниже — spread × 1.5, first_shot активен
+FILTHY_THRESHOLD = 0.25   # ниже — spread × 2.5, шанс клина low
+                           # ниже 0.0 — spread × 4,  шанс клина high
 
 
 class WeaponItem(Item):
@@ -116,6 +121,9 @@ def make_carbine() -> WeaponItem:
             first_shot_spread=4.0,
             jam_chance_low=0.03,
             jam_chance_high=0.10,
+            ricochet=True,
+            ricochet_spread=6.0,
+            ricochet_damage_mult=0.7,
         ),
     )
 
@@ -182,5 +190,8 @@ def make_sniper() -> WeaponItem:
             first_shot_spread=2.0,
             jam_chance_low=0.02,
             jam_chance_high=0.07,
+            ricochet=True,
+            ricochet_spread=6.0,
+            ricochet_damage_mult=0.7,
         ),
     )

@@ -171,6 +171,9 @@ class Weapon(pygame.sprite.Sprite):
                 color=s.bullet_color,
                 stopping_effect=s.stopping_effect,
                 groups=[self.bullet_group, self.all_sprites],
+                can_ricochet=s.ricochet,
+                ricochet_spread=s.ricochet_spread,
+                ricochet_damage_mult=s.ricochet_damage_mult,
             )
 
         self._first_shot    = False
