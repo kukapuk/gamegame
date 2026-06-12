@@ -31,8 +31,7 @@ def randomize_zone(hit_head_hitbox: bool) -> HitZone:
     if hit_head_hitbox:
         return HitZone.HEAD if r < 0.75 else HitZone.TORSO
     else:
-        if r < 0.05:   return HitZone.HEAD
-        elif r < 0.60: return HitZone.TORSO
+        if r < 0.60: return HitZone.TORSO
         elif r < 0.80: return HitZone.ARMS
         else:          return HitZone.LEGS
 
