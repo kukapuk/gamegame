@@ -119,9 +119,10 @@ class LootManager:
                     break
                 if (slot.item
                         and type(slot.item) == type(item)
-                        and hasattr(slot.item, "ammo_type")
-                        and slot.item.ammo_type == item.ammo_type
                         and slot.item.stack_count < slot.item.max_stack):
+                    # для ammo дополнительно проверяем ammo_type
+                    if hasattr(item, "ammo_type") and slot.item.ammo_type != item.ammo_type:
+                        continue
                     space = slot.item.max_stack - slot.item.stack_count
                     take  = min(space, remaining)
                     slot.item.stack_count += take
@@ -129,8 +130,9 @@ class LootManager:
             if remaining <= 0:
                 break
         if remaining > 0:
-            from items.ammo import AmmoItem
-            temp = AmmoItem(item.ammo_type, remaining)
+            import copy
+            temp = copy.copy(item)
+            temp.stack_count = remaining
             for inv in [player.backpack, player.pouch]:
                 if inv.add(temp):
                     remaining = 0

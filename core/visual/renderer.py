@@ -64,7 +64,7 @@ class Renderer:
 
         self._draw_npc_hint(screen, camera, world_manager)
 
-        hud.draw(screen, i_hold_progress=i_hold_progress, weapon=weapon)
+        hud.draw(screen, i_hold_progress=i_hold_progress, weapon=weapon, player=player)
 
         if debug:
             self._draw_debug(screen, camera, player, enemies,

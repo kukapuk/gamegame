@@ -34,6 +34,7 @@ class InputResult:
 
     # actions
     unjam: bool = False
+    use_item: bool = False
 
 
 class InputHandler:
@@ -151,6 +152,8 @@ class InputHandler:
             result.reload = True
         elif key == pygame.K_q:
             result.unjam = True
+        elif key == pygame.K_f:
+            result.use_item = True
         elif key == pygame.K_e:
             result.interact = True
         elif key == pygame.K_g:

@@ -167,6 +167,8 @@ class GameScene:
             self.weapon.try_reload()
         if inp.unjam:
             self.weapon.try_unjam()
+        if inp.use_item:
+            self.hud.try_use_hovered(self.player, pygame.mouse.get_pos())
         if inp.interact:
             self._handle_interact()
         if inp.drop_weapon:
@@ -197,7 +199,7 @@ class GameScene:
                 self.loot.spawn(result["drop_item"], drop_pos)
             self._sync_weapon()
         if inp.rmb_down:
-            self.hud.handle_rmb(pygame.mouse.get_pos())
+            self.hud.handle_rmb(pygame.mouse.get_pos(), self.player)
         if inp.mouse_motion:
             pos = pygame.mouse.get_pos()
             self.hud.handle_mouse_motion(pos)

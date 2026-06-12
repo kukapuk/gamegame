@@ -58,6 +58,11 @@ class Player(Actor):
         self._bleed_interval: float  = 1.0
         self._bleed_damage: int      = 3
 
+        self._using_item             = None  # TimedConsumable | None
+        self._using_slot             = None  # слот откуда берём
+        self.use_timer: float        = 0.0
+        self.use_time_total: float   = 0.0
+
         self.pouch = Inventory(
             capacity=4,
             typed_slots=[ItemType.WEAPON, ItemType.WEAPON, ItemType.ARMOR],
@@ -65,6 +70,37 @@ class Player(Actor):
         )
         self.backpack = Inventory(capacity=16)
         self.active_weapon_slot: int = 0
+
+    def start_timed_use(self, item, slot) -> bool:
+        """Начать применение TimedConsumable. False если уже применяем."""
+        if self._using_item is not None:
+            return False
+        self._using_item    = item
+        self._using_slot    = slot
+        self.use_timer      = 0.0
+        self.use_time_total = item.use_time
+        return True
+
+    def cancel_use(self) -> None:
+        self._using_item  = None
+        self._using_slot  = None
+        self.use_timer    = 0.0
+
+    @property
+    def is_using_item(self) -> bool:
+        return self._using_item is not None
+
+    def _update_timed_use(self, dt: float) -> None:
+        if self._using_item is None:
+            return
+        self.use_timer += dt
+        if self.use_timer >= self.use_time_total:
+            self._using_item.apply(self)
+            if self._using_slot is not None:
+                self._using_slot.take()
+            self._using_item = None
+            self._using_slot = None
+            self.use_timer   = 0.0
 
     def apply_bleeding(self) -> None:
         self.bleeding = True
@@ -215,4 +251,5 @@ class Player(Actor):
         self._update_stamina(dt)
         self._update_footsteps(dt)
         self._update_bleeding(dt)
+        self._update_timed_use(dt)
         super().update(dt, walls)

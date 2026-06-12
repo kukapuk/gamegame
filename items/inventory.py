@@ -127,6 +127,9 @@ class Inventory:
         if slot is None or slot.empty:
             return False
         item = slot.item
+        from items.consumable import TimedConsumable
+        if isinstance(item, TimedConsumable):
+            return target.start_timed_use(item, slot)
         if hasattr(item, "use"):
             used = item.use(target)
             if used:

@@ -1,4 +1,4 @@
-from items.consumable import make_medkit
+from items.consumable import make_medkit, make_bandage, make_surgical_kit
 from items.armor import make_light_armor, make_medium_armor, make_heavy_armor, Armor
 from items.ammo import make_ammo, AmmoType
 from items.cleaning_kit import make_cleaning_kit
@@ -7,6 +7,8 @@ from items.cleaning_kit import make_cleaning_kit
 REGISTRY: dict = {
     "medkit_30":       lambda: make_medkit(30),
     "medkit_50":       lambda: make_medkit(50),
+    "bandage":         lambda: make_bandage(),
+    "surgical_kit":    lambda: make_surgical_kit(),
     "armor_0":         lambda: Armor(tier=0),
     "armor_1":         lambda: make_light_armor(),
     "armor_2":         lambda: make_medium_armor(),
@@ -36,6 +38,12 @@ def serialize_item(item) -> dict | None:
     from items.weapon_item import WeaponItem
 
     if isinstance(item, Consumable):
+        from items.consumable import TimedConsumable
+        if isinstance(item, TimedConsumable):
+            return {"type": "bandage"}
+        name = item.name.lower().replace(" ", "_")
+        if name == "surgical_kit":
+            return {"type": "surgical_kit"}
         return {"type": "medkit", "heal": 30}
     from items.cleaning_kit import CleaningKit
     if isinstance(item, CleaningKit):
@@ -55,6 +63,10 @@ def deserialize_item(data: dict):
     t = data.get("type")
     if t == "medkit":
         return make_medkit(data.get("heal", 30))
+    if t == "bandage":
+        return make_bandage()
+    if t == "surgical_kit":
+        return make_surgical_kit()
     if t == "cleaning_kit":
         return make_cleaning_kit(data.get("heal", 0.5))
     if t == "armor":

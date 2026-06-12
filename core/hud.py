@@ -244,7 +244,7 @@ class HUD:
                 if not slot.empty:
                     self._tooltip_text = slot.item.get_tooltip()
 
-    def draw(self, screen: pygame.Surface, i_hold_progress: float = 0.0, weapon=None) -> None:
+    def draw(self, screen: pygame.Surface, i_hold_progress: float = 0.0, weapon=None, player=None) -> None:
         self._draw_hp_bar(screen)
         self._draw_stamina_bar(screen)
         self._draw_quick_slots(screen)
@@ -258,6 +258,8 @@ class HUD:
             self._draw_dragged_item(screen)
         if i_hold_progress > 0:
             self._draw_i_progress(screen, i_hold_progress)
+        if player and player.is_using_item:
+            self._draw_use_progress(screen, player)
         self._draw_tooltip(screen, pygame.mouse.get_pos())
         self.draw_info_panels(screen)
 
@@ -366,6 +368,34 @@ class HUD:
         label = "Opening..." if not self.backpack_open else "Closing..."
         lbl   = self.font_sm.render(label, True, (140, 150, 180))
         screen.blit(lbl, (cx - lbl.get_width() // 2, by - 16))
+
+    def _draw_use_progress(self, screen: pygame.Surface, player) -> None:
+        if player.use_time_total <= 0:
+            return
+        progress = min(player.use_timer / player.use_time_total, 1.0)
+        item     = player._using_item
+
+        bw, bh = 160, 8
+        cx     = self.s.screen_width // 2
+        by     = self.s.screen_height - self.MARGIN - bh - 44
+        bx     = cx - bw // 2
+
+        bar_colors = {
+            "Bandage":      (220, 180, 120),
+            "Medkit":       (80,  200, 100),
+            "Surgical Kit": (100, 180, 220),
+        }
+        bar_color = bar_colors.get(item.name, (180, 180, 220))
+
+        pygame.draw.rect(screen, (20, 20, 35),  (bx - 1, by - 1, bw + 2, bh + 2))
+        pygame.draw.rect(screen, (30, 30, 50),  (bx, by, bw, bh))
+        fill = int(bw * progress)
+        if fill > 0:
+            pygame.draw.rect(screen, bar_color, (bx, by, fill, bh))
+        pygame.draw.rect(screen, (80, 85, 110), (bx, by, bw, bh), 1)
+
+        lbl = self.font_sm.render(f"Using {item.name}...", True, bar_color)
+        screen.blit(lbl, (cx - lbl.get_width() // 2, by - 15))
 
     def _draw_hp_bar(self, screen: pygame.Surface) -> None:
         s       = self.s
@@ -533,26 +563,44 @@ class HUD:
     # Hover tooltip (короткий)
 
     def _get_item_at(self, pos: tuple):
-        """Возвращает предмет под курсором в любом открытом слоте."""
+        """Возвращает (slot, item) под курсором в любом открытом слоте."""
         for slot, rect in self._all_interactive_rects():
             if rect.collidepoint(pos) and not slot.empty:
-                return slot.item
-        return None
+                return slot, slot.item
+        return None, None
 
-    # RMB — открыть инфо-панель
+    def _get_item_only(self, pos: tuple):
+        _, item = self._get_item_at(pos)
+        return item
 
-    def handle_rmb(self, pos: tuple) -> None:
+    # RMB — применить расходник или открыть инфо-панель
+
+    def try_use_hovered(self, player, pos: tuple) -> bool:
+        """F — применить расходник под курсором. Возвращает True если применение началось."""
+        if not self.backpack_open:
+            return False
+        slot, item = self._get_item_at(pos)
+        if item is None:
+            return False
+        from items.consumable import Consumable, TimedConsumable
+        if isinstance(item, TimedConsumable):
+            return player.start_timed_use(item, slot)
+        if isinstance(item, Consumable):
+            item.use(player)
+            slot.take()
+            return True
+        return False
+
+    def handle_rmb(self, pos: tuple, player=None) -> None:
         if not self.backpack_open:
             return
-        item = self._get_item_at(pos)
+        _, item = self._get_item_at(pos)
         if item is None:
             return
-        # не открывать дубликат той же панели
         for panel in self._info_panels:
             if panel["item"] is item:
                 return
         pw, ph = 220, 140
-        # позиция — рядом с курсором, не выходить за экран
         px = min(pos[0] + 8, self.s.screen_width  - pw - 4)
         py = min(pos[1] + 8, self.s.screen_height - ph - 4)
         self._info_panels.append({
