@@ -98,9 +98,12 @@ class Renderer:
         if player_dead:
             self._draw_death_screen(screen)
 
-        self._draw_save_hint(screen, save_manager)
         dialog_manager.draw(screen)
         self._draw_cursor(screen, weapon, hud, player, offset)
+        # FPS всегда виден
+        fps_surf = self._font_save_hint.render(
+            f"{self.clock.get_fps():.0f} fps", True, (120, 120, 120))
+        screen.blit(fps_surf, (self.s.screen_width - fps_surf.get_width() - 8, 8))
         pygame.display.flip()
 
     # ------------------------------------------------------------------ #
@@ -172,12 +175,6 @@ class Renderer:
         hint  = self._death_font_sm.render("press any key to restart", True, (160, 160, 160))
         screen.blit(title, title.get_rect(center=(cx, cy - 40)))
         screen.blit(hint,  hint.get_rect(center=(cx, cy + 40)))
-
-    def _draw_save_hint(self, screen: pygame.Surface, save_manager) -> None:
-        has  = save_manager.has_save()
-        line = "F5 save  |  F9 load" + (" ✓" if has else "")
-        surf = self._font_save_hint.render(line, True, (100, 100, 120))
-        screen.blit(surf, (self.s.screen_width - surf.get_width() - 12, 8))
 
     def _draw_debug(
         self, screen, camera, player, enemies,
