@@ -58,7 +58,7 @@ class SaveManager:
                 "active_weapon_slot": p.active_weapon_slot,
             },
             "pouch":       self._serialize_inventory(p.pouch),
-            "backpack":    self._serialize_inventory(p.backpack),
+            "backpack":    p.backpack.serialize(),
             "enemies":     self._serialize_enemies(game),
             "world_items": self._serialize_world_items(game),
         }
@@ -113,7 +113,7 @@ class SaveManager:
         game.player.active_weapon_slot = pd.get("active_weapon_slot", 0)
 
         self._deserialize_inventory(game.player.pouch,    data.get("pouch", []))
-        self._deserialize_inventory(game.player.backpack, data.get("backpack", []))
+        game.player.backpack.deserialize(data.get("backpack", []))
 
         self._restore_enemies(game, data.get("enemies", []))
         self._restore_world_items(game, data.get("world_items", []))

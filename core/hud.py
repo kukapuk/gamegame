@@ -5,6 +5,7 @@ from core.settings import Settings
 from actors.player import Player
 from items.item import ItemType
 from items.inventory import Slot, Inventory
+from core.ui.grid_backpack_ui import GridBackpackUI
 
 
 @dataclass
@@ -60,34 +61,22 @@ class HUD:
         self._info_panels: list              = []   # список открытых инфо-панелей
         self._hovered_item                   = None  # предмет под курсором
 
-        ss      = self.SLOT_SIZE
-        pad     = self.SLOT_PAD
-        cols    = self.COLS_BACKPACK
-        rows    = (16 + cols - 1) // cols
-        panel_w = cols * ss + (cols - 1) * pad + 24
-        panel_h = rows * ss + (rows - 1) * pad + self.TITLE_H + 22
-
-        self._backpack_pos        = pygame.Vector2(
-            settings.screen_width - panel_w - self.MARGIN,
-            settings.screen_height // 2 - panel_h // 2,
-        )
-        self._backpack_panel_size = (panel_w, panel_h)
-        self._panel_dragging      = False
-        self._panel_drag_offset   = pygame.Vector2(0, 0)
+        self._grid_ui = GridBackpackUI(settings, player, self.font_sm, self.font_md)
 
     def toggle_pouch(self) -> None:
         self.pouch_open = not self.pouch_open
 
     def open_backpack(self) -> None:
         self.backpack_open = True
+        self._grid_ui.open()
 
     def close_backpack(self) -> None:
         self.backpack_open = False
+        self._grid_ui.close()
         if self._drag:
             if self._drag.source_slot:
                 self._drag.source_slot.item = self._drag.item
             self._drag = None
-        self._panel_dragging        = False
         self._hovered_world_item    = None
         self._hovered_rect          = None
         self._tooltip_text          = ""
@@ -101,44 +90,22 @@ class HUD:
     def handle_mouse_down(self, pos: tuple) -> None:
         if not self.backpack_open:
             return
-        # сначала проверяем инфо-панели
         if self.handle_info_panels_mouse_down(pos):
             return
-        if self._backpack_title_rect().collidepoint(pos):
-            self._panel_dragging = True
-            self._panel_drag_offset.update(
-                pos[0] - self._backpack_pos.x,
-                pos[1] - self._backpack_pos.y,
-            )
+        # Сетка рюкзака
+        if self._grid_ui.handle_mouse_down(pos):
             return
-        for slot, rect in self._all_interactive_rects():
+        # Pouch-слоты — конвертируем в GridDragState чтобы тень и точная вставка работали
+        for slot, rect in self._pouch_interactive_rects():
             if rect.collidepoint(pos) and not slot.empty:
-                self._drag = DragState(
-                    item=slot.item,
-                    source_inv=self._inv_for_slot(slot),
-                    source_slot=slot,
-                    icon_size=rect.width - 4,
-                )
-                slot.take()
+                item = slot.take()
+                self._grid_ui.start_drag_from_slot(item, slot)
                 return
 
     def handle_world_mouse_down(self, pos: tuple, world_items, camera_offset) -> bool:
         if not self.backpack_open:
             return False
-        for wi in world_items:
-            if not wi.is_in_pickup_range(self.player.pos):
-                continue
-            screen_rect = wi.rect.move(-camera_offset.x, -camera_offset.y)
-            if screen_rect.collidepoint(pos):
-                self._drag = DragState(
-                    item=wi.item,
-                    source_inv=None,
-                    source_slot=None,
-                    source_world_item=wi,
-                    icon_size=max(wi.rect.width, 20),
-                )
-                return True
-        return False
+        return self._grid_ui.handle_world_mouse_down(pos, world_items, camera_offset)
 
     def update_world_hover(self, pos: tuple, world_items, camera_offset) -> None:
         if not self.backpack_open:
@@ -157,92 +124,103 @@ class HUD:
         result = {"kill_world_item": None, "drop_item": None}
         self.handle_info_panels_mouse_up()
 
-        if self._panel_dragging:
-            self._panel_dragging = False
+        # Панель рюкзака тащится — сбрасываем независимо от drag-предмета
+        if self._grid_ui._panel_dragging:
+            self._grid_ui.handle_mouse_up(pos)
             return result
-        if not self._drag:
+
+        if not self._grid_ui.is_dragging:
             return result
 
-        for slot, rect in self._all_interactive_rects():
-            if rect.collidepoint(pos) and slot is not self._drag.source_slot:
-                drag_item   = self._drag.item
-                target_item = slot.item
+        drag_item    = self._grid_ui.get_drag_item()
+        source_world = self._grid_ui._drag.source_world_item if self._grid_ui._drag else None
+        source_grid  = self._grid_ui._drag.source_grid       if self._grid_ui._drag else None
+        source_slot  = self._grid_ui._drag.source_slot       if self._grid_ui._drag else None
 
-                # --- CleaningKit на оружие ---
-                from items.cleaning_kit import CleaningKit
-                from items.weapon_item import WeaponItem
-                if (isinstance(drag_item, CleaningKit)
-                        and isinstance(target_item, WeaponItem)):
-                    drag_item.apply_to_weapon(target_item)
-                    if self._drag.source_world_item:
-                        result["kill_world_item"] = self._drag.source_world_item
-                    self._drag = None
-                    return result
+        # 1. Проверяем pouch-слоты
+        for slot, rect in self._pouch_interactive_rects():
+            if not rect.collidepoint(pos):
+                continue
 
-                if (target_item and drag_item.stackable
-                        and type(target_item) == type(drag_item)
-                        and hasattr(target_item, 'ammo_type')
-                        and target_item.ammo_type == drag_item.ammo_type
-                        and target_item.stack_count < target_item.max_stack):
-                    space = target_item.max_stack - target_item.stack_count
-                    take  = min(space, drag_item.stack_count)
-                    target_item.stack_count += take
-                    drag_item.stack_count   -= take
-                    if drag_item.stack_count <= 0:
-                        if self._drag.source_slot:
-                            self._drag.source_slot.item = None
-                        self._drag = None
-                    else:
-                        if self._drag.source_slot:
-                            self._drag.source_slot.item = drag_item
-                        self._drag = None
-                    return result
+            target_item = slot.item
 
-                if not slot.accepts(drag_item):
-                    continue
-                source_slot  = self._drag.source_slot
-                source_world = self._drag.source_world_item
-                old_item     = slot.item
-
-                if source_slot and old_item and not source_slot.accepts(old_item):
-                    continue
-
-                old_item = slot.take()
-                slot.put(self._drag.item)
-                self._drag = None
-
-                if source_slot:
-                    source_slot.take()
-                    if old_item:
-                        source_slot.put(old_item)
-                elif source_world:
+            # CleaningKit → оружие
+            from items.cleaning_kit import CleaningKit
+            from items.weapon_item import WeaponItem
+            if isinstance(drag_item, CleaningKit) and isinstance(target_item, WeaponItem):
+                drag_item.apply_to_weapon(target_item)
+                self._grid_ui._drag = None
+                if source_world:
                     result["kill_world_item"] = source_world
-
                 return result
 
-        source_slot  = self._drag.source_slot
-        source_world = self._drag.source_world_item
+            # Стакование
+            if (target_item and drag_item.stackable
+                    and type(target_item) == type(drag_item)
+                    and hasattr(target_item, "ammo_type")
+                    and target_item.ammo_type == drag_item.ammo_type
+                    and target_item.stack_count < target_item.max_stack):
+                space = target_item.max_stack - target_item.stack_count
+                take  = min(space, drag_item.stack_count)
+                target_item.stack_count += take
+                drag_item.stack_count   -= take
+                if drag_item.stack_count <= 0:
+                    self._grid_ui._drag = None
+                else:
+                    # остаток — вернуть в источник
+                    if source_grid:
+                        source_grid.add(drag_item)
+                    elif source_slot and source_slot.item is None:
+                        source_slot.item = drag_item
+                    self._grid_ui._drag = None
+                if source_world:
+                    result["kill_world_item"] = source_world
+                return result
 
-        if source_slot:
-            result["drop_item"] = self._drag.item
-        self._drag = None
+            if not slot.accepts(drag_item):
+                continue
+
+            # Обычный перенос в pouch-слот
+            old_item = slot.take()
+            slot.put(drag_item)
+            self._grid_ui._drag = None
+
+            # Старый предмет из слота → в сетку или на пол
+            if old_item:
+                if source_grid is not None:
+                    if not source_grid.add(old_item):
+                        result["drop_item"] = old_item
+                else:
+                    if not self.player.backpack.add(old_item):
+                        result["drop_item"] = old_item
+
+            if source_world:
+                result["kill_world_item"] = source_world
+            return result
+
+        # 2. Pouch не подошёл — пробуем сетку (grid_ui разберётся)
+        grid_result = self._grid_ui.handle_mouse_up(pos)
+        result["kill_world_item"] = grid_result["kill_world_item"]
+        result["drop_item"]       = grid_result["drop_item"]
         return result
 
     def handle_mouse_motion(self, pos: tuple) -> None:
         self.handle_info_panels_mouse_motion(pos)
-        if self._panel_dragging:
-            pw, ph  = self._backpack_panel_size
-            new_x   = max(0, min(pos[0] - self._panel_drag_offset.x, self.s.screen_width  - pw))
-            new_y   = max(0, min(pos[1] - self._panel_drag_offset.y, self.s.screen_height - ph))
-            self._backpack_pos.update(new_x, new_y)
-            return
+        self._grid_ui.handle_mouse_motion(pos)
         self._tooltip_text  = ""
         self._hovered_rect  = None
-        for slot, rect in self._all_interactive_rects():
+        for slot, rect in self._pouch_interactive_rects():
             if rect.collidepoint(pos):
                 self._hovered_rect = rect
                 if not slot.empty:
                     self._tooltip_text = slot.item.get_tooltip()
+        if not self._tooltip_text:
+            self._tooltip_text = self._grid_ui.get_tooltip(pos)
+
+    def handle_key_down(self, key: int) -> None:
+        """Передаём нажатия клавиш в grid_ui (Ctrl — поворот предмета)."""
+        if self.backpack_open:
+            self._grid_ui.handle_key_down(key)
 
     def draw(self, screen: pygame.Surface, i_hold_progress: float = 0.0, weapon=None, player=None) -> None:
         self._draw_hp_bar(screen)
@@ -253,8 +231,10 @@ class HUD:
         if self.pouch_open:
             self._draw_pouch_panel(screen)
         if self.backpack_open:
-            self._draw_backpack(screen)
-        if self._drag:
+            self._grid_ui.draw(screen)
+        if self._grid_ui.is_dragging:
+            self._grid_ui.draw_dragged_item(screen)
+        elif self._drag:
             self._draw_dragged_item(screen)
         if i_hold_progress > 0:
             self._draw_i_progress(screen, i_hold_progress)
@@ -276,23 +256,21 @@ class HUD:
         pygame.draw.rect(hover, (140, 170, 255, 160), hover.get_rect(), 1)
         screen.blit(hover, (r.x - pad, r.y - pad))
 
-    def _backpack_title_rect(self) -> pygame.Rect:
-        pw, _ = self._backpack_panel_size
-        return pygame.Rect(int(self._backpack_pos.x), int(self._backpack_pos.y), pw, self.TITLE_H)
-
     def _bar_baseline(self) -> int:
         return self.s.screen_height - self.MARGIN
 
-    def _all_interactive_rects(self):
+    def _pouch_interactive_rects(self):
+        """Только sloty подсумка и quick slots (без сетки рюкзака)."""
         yield from self._quick_slot_rects()
         yield from self._pouch_panel_slot_rects
-        yield from self._backpack_slot_rects
+
+    def _all_interactive_rects(self):
+        """Оставлен для совместимости с tooltip и hover логикой pouch."""
+        yield from self._pouch_interactive_rects()
 
     def _inv_for_slot(self, slot: Slot) -> Inventory:
-        for s in self.player.pouch.all_slots():
-            if s is slot:
-                return self.player.pouch
-        return self.player.backpack
+        """Только для pouch-слотов — backpack теперь GridInventory."""
+        return self.player.pouch
 
     def _quick_slot_rects(self):
         ox  = self.MARGIN + self.s.player_hp_bar_width + 12
@@ -492,46 +470,6 @@ class HUD:
             lbl = self.font_sm.render("W2", True, (70, 90, 150))
             screen.blit(lbl, (r.x + 3, r.y + 3))
 
-    def _draw_backpack(self, screen: pygame.Surface) -> None:
-        ss     = self.SLOT_SIZE
-        pad    = self.SLOT_PAD
-        cols   = self.COLS_BACKPACK
-        slots  = self.player.backpack.all_slots()
-        pw, ph = self._backpack_panel_size
-        px     = int(self._backpack_pos.x)
-        py     = int(self._backpack_pos.y)
-
-        surf = pygame.Surface((pw, ph), pygame.SRCALPHA)
-        surf.fill(self.PANEL_BG)
-        screen.blit(surf, (px, py))
-        pygame.draw.rect(screen, self.PANEL_BORDER, (px, py, pw, ph), 1)
-
-        title_bg = self.TITLE_DRAG_BG if self._panel_dragging else self.TITLE_BG
-        pygame.draw.rect(screen, title_bg, (px, py, pw, self.TITLE_H))
-        pygame.draw.rect(screen, self.PANEL_BORDER, (px, py, pw, self.TITLE_H), 1)
-
-        title = self.font_md.render(f"Backpack", True, (160, 160, 180))
-        screen.blit(title, (px + 10, py + (self.TITLE_H - title.get_height()) // 2))
-
-        ox = px + 12
-        oy = py + self.TITLE_H + 10
-        self._backpack_slot_rects = []
-
-        for i, slot in enumerate(slots):
-            col, row = i % cols, i // cols
-            r        = pygame.Rect(ox + col * (ss + pad), oy + row * (ss + pad), ss, ss)
-            self._backpack_slot_rects.append((slot, r))
-            bg = self.SLOT_HOVER if r == self._hovered_rect else self.SLOT_BG
-            pygame.draw.rect(screen, bg,               r)
-            pygame.draw.rect(screen, self.SLOT_BORDER, r, 1)
-            if not slot.empty:
-                icon = pygame.transform.scale(slot.item.icon, (ss - 4, ss - 4))
-                screen.blit(icon, icon.get_rect(center=r.center))
-                if slot.item.stackable and slot.item.stack_count > 1:
-                    cnt = self.font_sm.render(str(slot.item.stack_count), True, (200, 200, 160))
-                    screen.blit(cnt, (r.right - cnt.get_width() - 3, r.bottom - cnt.get_height() - 2))
-                self._draw_weapon_condition(screen, slot.item, r)
-
     def _draw_dragged_item(self, screen: pygame.Surface) -> None:
         mx, my = pygame.mouse.get_pos()
         sz     = self._drag.icon_size
@@ -539,7 +477,7 @@ class HUD:
         screen.blit(icon, (mx - sz // 2, my - sz // 2))
 
     def _draw_tooltip(self, screen: pygame.Surface, pos: tuple) -> None:
-        if not self._tooltip_text or self._drag:
+        if not self._tooltip_text or self._grid_ui.is_dragging or self._drag:
             return
         surf = self.font_sm.render(self._tooltip_text, True, (255, 255, 200))
         pad  = 6
@@ -591,10 +529,14 @@ class HUD:
     # Hover tooltip (короткий)
 
     def _get_item_at(self, pos: tuple):
-        """Возвращает (slot, item) под курсором в любом открытом слоте."""
+        """Возвращает (slot_or_None, item) под курсором — pouch-слоты + сетка рюкзака."""
         for slot, rect in self._all_interactive_rects():
             if rect.collidepoint(pos) and not slot.empty:
                 return slot, slot.item
+        if self.backpack_open:
+            item = self._grid_ui.item_at_pos(pos)
+            if item:
+                return None, item   # slot=None означает предмет в GridInventory
         return None, None
 
     def _get_item_only(self, pos: tuple):
@@ -604,18 +546,28 @@ class HUD:
     # RMB — применить расходник или открыть инфо-панель
 
     def try_use_hovered(self, player, pos: tuple) -> bool:
-        """F — применить расходник под курсором. Возвращает True если применение началось."""
+        """F — применить расходник под курсором."""
         if not self.backpack_open:
             return False
         slot, item = self._get_item_at(pos)
         if item is None:
             return False
         from items.consumable import Consumable, TimedConsumable
+
+        def _remove():
+            if slot is not None:
+                slot.take()
+            else:
+                self.player.backpack.remove(item)
+
         if isinstance(item, TimedConsumable):
-            return player.start_timed_use(item, slot)
+            started = player.start_timed_use(item, slot)
+            if started and slot is None:
+                self.player.backpack.remove(item)
+            return started
         if isinstance(item, Consumable):
             item.use(player)
-            slot.take()
+            _remove()
             return True
         return False
 

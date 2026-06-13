@@ -4,6 +4,13 @@ from items.armor import make_light_armor, make_medium_armor, make_heavy_armor, A
 from items.ammo import make_ammo, AmmoType
 from items.cleaning_kit import make_cleaning_kit
 
+# Маппинг item.name.lower() → ключ в WEAPON_REGISTRY
+_WEAPON_NAME_TO_KEY = {
+    "carbine":      "carbine",
+    "shotgun":      "shotgun",
+    "sniper rifle": "sniper",
+}
+
 
 REGISTRY: dict = {
     "medkit_30":       lambda: make_medkit(30),
@@ -41,14 +48,16 @@ def serialize_item(item) -> dict | None:
     from items.ammo import AmmoItem
     from items.weapon_item import WeaponItem
 
-    if isinstance(item, Consumable):
-        from items.consumable import TimedConsumable
-        if isinstance(item, TimedConsumable):
+    from items.consumable import Consumable, TimedConsumable
+    if isinstance(item, (Consumable, TimedConsumable)):
+        name_key = item.name.lower().replace(" ", "_")
+        if name_key == "bandage":
             return {"type": "bandage"}
-        name = item.name.lower().replace(" ", "_")
-        if name == "surgical_kit":
+        if name_key == "surgical_kit":
             return {"type": "surgical_kit"}
-        return {"type": "medkit", "heal": 30}
+        if name_key == "medkit":
+            return {"type": "medkit", "heal": 30}
+        return {"type": name_key}
     from items.cleaning_kit import CleaningKit
     if isinstance(item, CleaningKit):
         return {"type": "cleaning_kit", "heal": item.heal_amount}
@@ -59,7 +68,8 @@ def serialize_item(item) -> dict | None:
     if isinstance(item, AmmoItem):
         return {"type": "ammo", "ammo_type": item.ammo_type.name, "count": item.stack_count}
     if isinstance(item, WeaponItem):
-        return {"type": "weapon", "name": item.name.lower().replace(" ", "_"), "mag_current": item.mag_current}
+        key = _WEAPON_NAME_TO_KEY.get(item.name.lower(), item.name.lower().replace(" ", "_"))
+        return {"type": "weapon", "name": key, "mag_current": item.mag_current}
     return None
 
 

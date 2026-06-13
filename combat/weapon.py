@@ -254,11 +254,13 @@ class Weapon(pygame.sprite.Sprite):
             return 0
         ammo_type = self._weapon_item.stats.ammo_type
         total = 0
-        for inv in [self.owner.pouch, self.owner.backpack]:
-            for slot in inv.all_slots():
-                if slot.item and isinstance(slot.item, AmmoItem):
-                    if slot.item.ammo_type == ammo_type:
-                        total += slot.item.stack_count
+        for slot in self.owner.pouch.all_slots():
+            if slot.item and isinstance(slot.item, AmmoItem):
+                if slot.item.ammo_type == ammo_type:
+                    total += slot.item.stack_count
+        for item in self.owner.backpack.all_items():
+            if isinstance(item, AmmoItem) and item.ammo_type == ammo_type:
+                total += item.stack_count
         return total
 
     def _take_ammo(self, needed: int) -> int:
@@ -268,19 +270,32 @@ class Weapon(pygame.sprite.Sprite):
             return 0
         ammo_type = self._weapon_item.stats.ammo_type
         taken = 0
-        for inv in [self.owner.pouch, self.owner.backpack]:
-            for slot in inv.all_slots():
-                if needed <= 0:
-                    break
-                if slot.item and isinstance(slot.item, AmmoItem):
-                    if slot.item.ammo_type == ammo_type:
-                        available = slot.item.stack_count
-                        take      = min(available, needed)
-                        slot.item.stack_count -= take
-                        taken  += take
-                        needed -= take
-                        if slot.item.stack_count <= 0:
-                            slot.item = None
+
+        # pouch — старый Inventory, итерируем по слотам
+        for slot in self.owner.pouch.all_slots():
+            if needed <= 0:
+                break
+            if slot.item and isinstance(slot.item, AmmoItem):
+                if slot.item.ammo_type == ammo_type:
+                    take = min(slot.item.stack_count, needed)
+                    slot.item.stack_count -= take
+                    taken  += take
+                    needed -= take
+                    if slot.item.stack_count <= 0:
+                        slot.item = None
+
+        # backpack — GridInventory, итерируем по предметам
+        for item in list(self.owner.backpack.all_items()):
+            if needed <= 0:
+                break
+            if isinstance(item, AmmoItem) and item.ammo_type == ammo_type:
+                take = min(item.stack_count, needed)
+                item.stack_count -= take
+                taken  += take
+                needed -= take
+                if item.stack_count <= 0:
+                    self.owner.backpack.remove(item)
+
         return taken
 
     # Visual helpers

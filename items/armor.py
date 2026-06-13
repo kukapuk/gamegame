@@ -21,6 +21,7 @@ class Armor(Item):
             name=f"{TIER_NAMES[tier]} Armor",
             item_type=ItemType.ARMOR,
             icon_color=TIER_COLORS[tier],
+            grid_size=(2, 2),
         )
         self.tier = tier
         self.dash_stamina_mult    = DASH_STAMINA_MULT[tier]
@@ -74,6 +75,7 @@ class Helmet(Item):
             name=HELMET_NAMES[tier],
             item_type=ItemType.HELMET,
             icon_color=HELMET_COLORS[tier],
+            grid_size=(1, 1),
         )
         self.tier = tier
 

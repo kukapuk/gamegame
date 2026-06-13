@@ -35,6 +35,7 @@ class InputResult:
     # actions
     unjam: bool = False
     use_item: bool = False
+    hud_key: int = -1    # любая клавиша при открытом рюкзаке (для grid_ui Ctrl-поворота)
 
 
 class InputHandler:
@@ -138,6 +139,20 @@ class InputHandler:
 
         if key == pygame.K_ESCAPE:
             result.quit = True
+        elif key == pygame.K_e:
+            result.interact = True
+        elif key == pygame.K_f:
+            result.use_item = True
+        elif key == pygame.K_TAB:
+            result.toggle_pouch = True
+        elif key in self.s.pouch_hotkeys:
+            # Z/X/C/V работают всегда, даже при открытом рюкзаке
+            for i, hk in enumerate(self.s.pouch_hotkeys):
+                if key == hk:
+                    result.use_pouch_slot = i
+                    break
+        elif hud_open:
+            result.hud_key = key
         elif key == pygame.K_1:
             result.switch_weapon = 0
         elif key == pygame.K_2:
@@ -162,11 +177,3 @@ class InputHandler:
             result.save = True
         elif key == pygame.K_F9:
             result.load = True
-        else:
-            if not hud_open:
-                typed_count = len(self.s.pouch_hotkeys)
-                # pouch_hotkeys = (K_z, K_x, K_c, K_v)
-                for i, hk in enumerate(self.s.pouch_hotkeys):
-                    if key == hk:
-                        result.use_pouch_slot = i
-                        break

@@ -113,28 +113,29 @@ class LootManager:
 
     def _pickup_stackable(self, item, player) -> int:
         remaining = item.stack_count
-        for inv in [player.backpack, player.pouch]:
-            for slot in inv.all_slots():
-                if remaining <= 0:
-                    break
-                if (slot.item
-                        and type(slot.item) == type(item)
-                        and slot.item.stack_count < slot.item.max_stack):
-                    # для ammo дополнительно проверяем ammo_type
-                    if hasattr(item, "ammo_type") and slot.item.ammo_type != item.ammo_type:
-                        continue
-                    space = slot.item.max_stack - slot.item.stack_count
-                    take  = min(space, remaining)
-                    slot.item.stack_count += take
-                    remaining -= take
+
+        # Сначала пытаемся докинуть в уже лежащие стаки
+        # pouch — старый Inventory (all_slots), backpack — GridInventory (all_items)
+        pouch_slots = player.pouch.all_slots()
+        backpack_items = player.backpack.all_items()
+
+        for existing in [*[s.item for s in pouch_slots if s.item], *backpack_items]:
             if remaining <= 0:
                 break
+            if (type(existing) == type(item)
+                    and existing.stack_count < existing.max_stack):
+                if hasattr(item, "ammo_type") and existing.ammo_type != item.ammo_type:
+                    continue
+                space = existing.max_stack - existing.stack_count
+                take  = min(space, remaining)
+                existing.stack_count += take
+                remaining -= take
+
         if remaining > 0:
             import copy
             temp = copy.copy(item)
             temp.stack_count = remaining
-            for inv in [player.backpack, player.pouch]:
-                if inv.add(temp):
-                    remaining = 0
-                    break
+            if player.backpack.add(temp) or player.pouch.add(temp):
+                remaining = 0
+
         return remaining

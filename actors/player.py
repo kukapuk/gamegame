@@ -1,7 +1,7 @@
 import pygame
 from actors.actor import Actor
 from items.stats import Stats
-from items.inventory import Inventory
+from items.inventory import Inventory, GridInventory
 from items.item import ItemType
 from core.settings import Settings
 
@@ -63,7 +63,7 @@ class Player(Actor):
             typed_slots=[ItemType.WEAPON, ItemType.WEAPON, ItemType.HELMET, ItemType.ARMOR],
             owner=self,
         )
-        self.backpack = Inventory(capacity=16)
+        self.backpack = GridInventory(cols=8, rows=6)
         self.active_weapon_slot: int = 0
 
     def start_timed_use(self, item, slot) -> bool:

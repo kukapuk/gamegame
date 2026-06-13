@@ -165,6 +165,9 @@ class GameScene:
             self.dialog.handle_key(inp.dialog_key)
             return "running"
 
+        if inp.hud_key != -1:
+            self.hud.handle_key_down(inp.hud_key)
+
         if inp.switch_weapon != -1:
             self.player.switch_weapon(inp.switch_weapon)
             self._sync_weapon()

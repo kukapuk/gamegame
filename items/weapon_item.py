@@ -28,6 +28,9 @@ class WeaponStats:
     recoil_recovery: float = 12.0
     aim_radius: float      = 160.0
 
+    # Размер в сетке рюкзака (cols, rows) в горизонтальном положении
+    grid_size: tuple = (2, 1)
+
     # --- загрязнение ---
     dirt_per_shot:     float = 0.008  # деградация за выстрел
     first_shot_spread: float = 3.0    # доп. разброс первого выстрела (градусы)
@@ -61,6 +64,7 @@ class WeaponItem(Item):
             item_type=ItemType.WEAPON,
             icon_color=icon_color,
             stackable=False,
+            grid_size=stats.grid_size,
         )
         self.stats       = stats
         self.mag_current: int   = -1
@@ -138,6 +142,7 @@ def make_carbine() -> WeaponItem:
             ricochet=True,
             ricochet_spread=6.0,
             ricochet_damage_mult=0.7,
+            grid_size=(2, 1),
         ),
     )
 
@@ -171,6 +176,7 @@ def make_shotgun() -> WeaponItem:
             first_shot_spread=6.0,
             jam_chance_low=0.04,
             jam_chance_high=0.12,
+            grid_size=(2, 1),
         ),
     )
 
@@ -207,5 +213,6 @@ def make_sniper() -> WeaponItem:
             ricochet=True,
             ricochet_spread=6.0,
             ricochet_damage_mult=0.7,
+            grid_size=(3, 1),
         ),
     )

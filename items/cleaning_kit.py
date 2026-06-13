@@ -14,6 +14,7 @@ class CleaningKit(Item):
             item_type=ItemType.CONSUMABLE,
             icon_color=(180, 160, 100),
             stackable=False,
+            grid_size=(1, 1),
         )
         self.heal_amount = heal_amount
 

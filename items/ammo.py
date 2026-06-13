@@ -38,6 +38,7 @@ class AmmoItem(Item):
             icon_color=AMMO_COLORS[ammo_type],
             stackable=True,
             max_stack=max_s,
+            grid_size=(1, 1),
         )
         self.ammo_type   = ammo_type
         self.stack_count = min(count, max_s)
