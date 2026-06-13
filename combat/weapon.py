@@ -348,8 +348,10 @@ class Weapon(pygame.sprite.Sprite):
             self.owner.facing = self.aim_dir.copy()
 
     def _update_transform(self) -> None:
-        angle      = -math.degrees(math.atan2(self.aim_dir.y, self.aim_dir.x))
-        self.image = pygame.transform.rotate(self._base_image, angle)
+        angle        = -math.degrees(math.atan2(self.aim_dir.y, self.aim_dir.x))
+        facing_left  = self.aim_dir.x < 0
+        base         = pygame.transform.flip(self._base_image, False, facing_left)
+        self.image   = pygame.transform.rotate(base, angle)
         self.rect  = self.image.get_rect()
         offset     = self.aim_dir * (self.settings.weapon_offset - self._recoil_offset)
         self.rect.center = (
