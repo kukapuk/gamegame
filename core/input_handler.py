@@ -12,6 +12,7 @@ class InputResult:
     quit:           bool = False
     restart:        bool = False
     toggle_debug:   bool = False
+    toggle_flashlight: bool = False
     switch_weapon:  int  = -1          # 0 / 1, или -1 = нет переключения
     dash:           bool = False
     reload:         bool = False
@@ -161,6 +162,8 @@ class InputHandler:
             result.toggle_pouch = True
         elif key == pygame.K_F1:
             result.toggle_debug = True
+        elif key == pygame.K_l:
+            result.toggle_flashlight = True
         elif key == pygame.K_SPACE:
             result.dash = True
         elif key == pygame.K_r:

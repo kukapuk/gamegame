@@ -106,7 +106,7 @@ class VisionSystem:
     DARKNESS        = 215
     FLASHLIGHT_FOV  = 130.0   # градусы
     FLASHLIGHT_R    = 500.0
-    AMBIENT_R       = 90.0
+    AMBIENT_R       = 55.0
     RAY_COUNT       = 120     # лучей конуса (больше = точнее тени)
     CIRCLE_RAYS     = 80      # лучей для точечных источников
     BLUR_R          = 6
@@ -122,13 +122,26 @@ class VisionSystem:
 
         self._small   = pygame.Surface((self._hsw, self._hsh), pygame.SRCALPHA)
         self._overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        # отдельный surface для цветового tint конуса и вспышки
+        self._glow    = pygame.Surface((sw, sh), pygame.SRCALPHA)
 
         self._wall_rects: list[pygame.Rect] = []
         self._static: list[LightSource] = []
 
         self._player_pos = pygame.math.Vector2(0, 0)
         self._player_dir = 0.0
-        self._muzzle_t   = 0.0
+
+        # мuzzle flash
+        self._muzzle_t     = 0.0
+        self._muzzle_color = (255, 120, 30)   # оранжево-красный по умолчанию
+        self._muzzle_r     = 55.0
+        self._muzzle_dur   = 0.07
+
+        # пульсация ambient
+        self._pulse_t = 0.0
+
+        # фонарик вкл/выкл
+        self.flashlight_on = True
 
         self._last_pos    = (-9999.0, -9999.0)
         self._last_dir    = -9999.0
@@ -155,11 +168,24 @@ class VisionSystem:
         self._player_pos = pygame.math.Vector2(pos)
         self._player_dir = math.atan2(aim_dir.y, aim_dir.x)
 
-    def trigger_muzzle_flash(self) -> None:
-        self._muzzle_t = 0.08
+    def toggle_flashlight(self) -> None:
+        self.flashlight_on = not self.flashlight_on
+        self._dirty = True
+
+    def trigger_muzzle_flash(
+        self,
+        color:    tuple = (255, 120, 30),
+        radius:   float = 80.0,
+        duration: float = 0.07,
+    ) -> None:
+        self._muzzle_t     = duration
+        self._muzzle_color = color
+        self._muzzle_r     = radius
+        self._muzzle_dur   = duration
 
     def update(self, dt: float) -> None:
         self._muzzle_t = max(0.0, self._muzzle_t - dt)
+        self._pulse_t += dt
         for src in self._static:
             if src.flicker:
                 src._flicker_phase += dt * 9.0
@@ -175,6 +201,10 @@ class VisionSystem:
             return
         self._rebuild(offset)
         screen.blit(self._overlay, (0, 0))
+        # цветовой tint поверх оверлея через ADD
+        if self._glow_dirty:
+            self._rebuild_glow(offset)
+        screen.blit(self._glow, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 
     def render_sprite_layer(self, screen, offset, debug=False) -> None:
         """После спрайтов — силуэты видны в темноте."""
@@ -196,6 +226,8 @@ class VisionSystem:
         scroll = abs(ox - self._last_offset[0]) > 1.5 or abs(oy - self._last_offset[1]) > 1.5
         flash  = self._muzzle_t > 0
 
+        self._glow_dirty = moved or turned or scroll or flash or self._dirty
+
         if not (moved or turned or scroll or flash or self._dirty):
             return
 
@@ -213,22 +245,28 @@ class VisionSystem:
         # ── PIL: темнота ────────────────────────
         self._draw.rectangle([0, 0, hsw, hsh], fill=DARK)
 
-        # ── Фонарик ─────────────────────────────
-        cone_half = math.radians(self.FLASHLIGHT_FOV / 2)
-        poly_w = _build_poly(px, py, pdir, cone_half,
-                             self.FLASHLIGHT_R, rects, self.RAY_COUNT)
-        self._draw_poly_gradient(poly_w, px, py, self.FLASHLIGHT_R,
-                                 DARK, ox, oy, S)
+        # ── Фонарик (только если включён) ───────
+        if self.flashlight_on:
+            cone_half = math.radians(self.FLASHLIGHT_FOV / 2)
+            poly_w = _build_poly(px, py, pdir, cone_half,
+                                 self.FLASHLIGHT_R, rects, self.RAY_COUNT)
+            self._draw_poly_gradient(poly_w, px, py, self.FLASHLIGHT_R,
+                                     DARK, ox, oy, S)
 
-        # ── Ambient ─────────────────────────────
-        self._draw_soft_circle(px, py, self.AMBIENT_R, DARK, ox, oy, S)
+        # ── Ambient (с пульсацией) ───────────────
+        pulse = math.sin(self._pulse_t * 2.5) * 5.0   # ±5px
+        self._draw_soft_circle(px, py, self.AMBIENT_R + pulse, DARK, ox, oy, S)
 
-        # ── Дульная вспышка ─────────────────────
+        # ── Дульная вспышка (резкая) ─────────────
         if self._muzzle_t > 0:
-            t  = self._muzzle_t / 0.08
+            t  = self._muzzle_t / self._muzzle_dur
             fd = pygame.math.Vector2(math.cos(pdir), math.sin(pdir))
             fp = self._player_pos + fd * 28
-            self._draw_soft_circle(fp.x, fp.y, 60 * t, DARK, ox, oy, S)
+            # резкий круг — один эллипс без градиента
+            r  = max(1, int(self._muzzle_r * t * S))
+            cx = round((fp.x - ox) * S)
+            cy = round((fp.y - oy) * S)
+            self._draw.ellipse([cx-r, cy-r, cx+r, cy+r], fill=0)
 
         # ── Статичные источники ──────────────────
         for src in self._static:
@@ -251,6 +289,35 @@ class VisionSystem:
         pygame.transform.scale(self._small, (self._sw, self._sh), self._overlay)
 
     # ── Draw helpers ───────────────────────────
+
+    def _rebuild_glow(self, offset: pygame.math.Vector2) -> None:
+        """Цветовой glow — только вспышка выстрела конусом."""
+        self._glow.fill((0, 0, 0, 0))
+        if self._muzzle_t <= 0:
+            return
+
+        ox, oy = offset.x, offset.y
+        px, py = self._player_pos.x, self._player_pos.y
+        pdir   = self._player_dir
+        t      = self._muzzle_t / self._muzzle_dur
+
+        # конусная вспышка — узкий конус в направлении выстрела
+        cone_half = math.radians(14.0)   # узкий конус ±14°
+        flash_r   = self._muzzle_r * 1.8 * t
+        poly_w = _build_poly(px, py, pdir, cone_half,
+                             flash_r, self._wall_rects, 30)
+        if len(poly_w) >= 3:
+            pts = [(round(x - ox), round(y - oy)) for x, y in poly_w]
+            alpha_cone = int(55 * t * t)   # t² — плавнее спадает
+            pygame.draw.polygon(self._glow, (*self._muzzle_color, alpha_cone), pts)
+
+        # маленький яркий круг у ствола
+        fd = pygame.math.Vector2(math.cos(pdir), math.sin(pdir))
+        fp = self._player_pos + fd * 22
+        cx = round(fp.x - ox)
+        cy = round(fp.y - oy)
+        r  = max(1, int(14 * t))
+        pygame.draw.circle(self._glow, (*self._muzzle_color, int(130 * t * t)), (cx, cy), r)
 
     def _draw_poly_gradient(self, poly_world, cx, cy, radius,
                             dark, ox, oy, S):

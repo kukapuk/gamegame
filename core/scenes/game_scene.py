@@ -168,6 +168,8 @@ class GameScene:
 
         if inp.toggle_debug:
             self.debug = not self.debug
+        if inp.toggle_flashlight:
+            self.vision.toggle_flashlight()
         if inp.toggle_pouch:
             self.hud.toggle_pouch()
 
@@ -265,7 +267,15 @@ class GameScene:
 
         if pygame.mouse.get_pressed()[0] and not self.hud.is_open():
             if self.weapon.try_shoot():
-                self.vision.trigger_muzzle_flash()
+                if self.weapon._weapon_item:
+                    s = self.weapon._weapon_item.stats
+                    self.vision.trigger_muzzle_flash(
+                        color    = s.flash_color,
+                        radius   = s.flash_radius,
+                        duration = s.flash_duration,
+                    )
+                else:
+                    self.vision.trigger_muzzle_flash()
                 radius = (self.weapon._weapon_item.stats.sound_radius
                           if self.weapon.has_weapon
                           else self.settings.gunshot_sound_radius)

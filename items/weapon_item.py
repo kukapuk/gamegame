@@ -42,6 +42,11 @@ class WeaponStats:
     ricochet_spread:      float = 8.0
     ricochet_damage_mult: float = 0.7
 
+    # вспышка выстрела
+    flash_color:    tuple = (255, 120, 30)  # оранжево-красный
+    flash_radius:   float = 55.0
+    flash_duration: float = 0.07
+
 
 # Пороги cleanliness
 CLEAN_THRESHOLD  = 0.75   # выше — всё нормально
@@ -143,6 +148,9 @@ def make_carbine() -> WeaponItem:
             ricochet_spread=6.0,
             ricochet_damage_mult=0.7,
             grid_size=(2, 1),
+            flash_color=(255, 160, 40),
+            flash_radius=45.0,
+            flash_duration=0.06,
         ),
     )
 
@@ -177,6 +185,9 @@ def make_shotgun() -> WeaponItem:
             jam_chance_low=0.04,
             jam_chance_high=0.12,
             grid_size=(2, 1),
+            flash_color=(255, 80, 20),   # ярко-красная большая вспышка
+            flash_radius=90.0,
+            flash_duration=0.10,
         ),
     )
 
@@ -214,5 +225,8 @@ def make_sniper() -> WeaponItem:
             ricochet_spread=6.0,
             ricochet_damage_mult=0.7,
             grid_size=(3, 1),
+            flash_color=(200, 230, 255),   # холодная белая вспышка
+            flash_radius=65.0,
+            flash_duration=0.05,
         ),
     )
