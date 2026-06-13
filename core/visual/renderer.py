@@ -51,6 +51,7 @@ class Renderer:
         i_hold_progress: float = 0.0,
         player_dead: bool = False,
         debug: bool = False,
+        vision_system = None,
     ) -> None:
         offset = camera.get_offset()
 
@@ -65,9 +66,17 @@ class Renderer:
             for casing in casings:
                 screen.blit(casing.image, casing.rect.move(-offset.x, -offset.y))
 
+        # FOV floor layer — после пола, ДО спрайтов
+        if vision_system is not None:
+            vision_system.render_floor_layer(screen, offset, debug=debug)
+
         self._draw_sprites(screen, camera, level, world_items, npcs, enemies,
                            enemy_bullets, bullets, player, weapon)
         self._draw_enemy_hp_bars(screen, camera, enemies)
+
+        # FOV sprite layer — поверх спрайтов (силуэты видны)
+        if vision_system is not None:
+            vision_system.render_sprite_layer(screen, offset, debug=debug)
 
         if popups:
             for popup in popups:

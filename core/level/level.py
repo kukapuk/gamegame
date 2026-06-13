@@ -21,6 +21,7 @@ class Level:
 
         self._floor_surfaces: list[tuple[pygame.Surface, pygame.Rect]] = []
         self.objects: list[dict] = []
+        self.lights:  list[dict] = []
 
         self._load(path)
 
@@ -39,6 +40,8 @@ class Level:
             elif isinstance(layer, pytmx.TiledObjectGroup):
                 if layer.name == "objects":
                     self._load_objects(layer)
+                elif layer.name == "lights":
+                    self._load_lights(layer)
 
     def _load_floor(self, tiled, layer: pytmx.TiledTileLayer) -> None:
         ts = self.tile_size
@@ -79,6 +82,18 @@ class Level:
 
             if obj.type == "player_spawn":
                 self.player_spawn = (cx, cy)
+
+    def _load_lights(self, layer: pytmx.TiledObjectGroup) -> None:
+        for obj in layer:
+            props = dict(obj.properties) if obj.properties else {}
+            self.lights.append({
+                "x":         obj.x,
+                "y":         obj.y,
+                "radius":    props.get("radius",    180),
+                "color":     props.get("color",     "#ffcc88"),
+                "intensity": props.get("intensity", 0.85),
+                "flicker":   props.get("flicker",   False),
+            })
 
     def draw_floor(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         for tile_surf, rect in self._floor_surfaces:

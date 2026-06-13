@@ -9,6 +9,7 @@ from core.managers.world_manager import WorldManager
 from core.managers.spawn_manager import SpawnManager
 from core.level.level_loader import LevelLoader
 from core.visual.renderer import Renderer
+from core.visual.vision import VisionSystem
 from core.input_handler import InputHandler
 
 
@@ -44,6 +45,7 @@ class GameScene:
         self.blood_drops   = pygame.sprite.Group()
         self.casings       = pygame.sprite.Group()
         self.popups        = pygame.sprite.Group()
+        self.vision        = VisionSystem(settings)
 
         # Системы
         self.loot         = LootManager(self.world_items)
@@ -92,6 +94,7 @@ class GameScene:
         self.player, self.weapon, self.camera, self.hud = \
             self.level_loader.load(self.FIRST_LEVEL)
 
+        self.vision.load_level(self.world.level)
         self._assign_blood_group()
 
     def _assign_blood_group(self) -> None:
@@ -145,6 +148,7 @@ class GameScene:
             i_hold_progress = i_hold_progress,
             player_dead     = self.player_dead,
             debug           = self.debug,
+            vision_system   = self.vision,
         )
 
     # Input
@@ -253,11 +257,15 @@ class GameScene:
         self.loot.update(self.player)
         self.world.update(self.player)
 
+        self.vision.set_player_flashlight(self.player.pos, self.weapon.aim_dir)
+        self.vision.update(dt)
+
         self._propagate_sound_events()
         self._propagate_footsteps()
 
         if pygame.mouse.get_pressed()[0] and not self.hud.is_open():
             if self.weapon.try_shoot():
+                self.vision.trigger_muzzle_flash()
                 radius = (self.weapon._weapon_item.stats.sound_radius
                           if self.weapon.has_weapon
                           else self.settings.gunshot_sound_radius)
@@ -294,6 +302,7 @@ class GameScene:
         self.player, self.weapon, self.camera, self.hud = self.level_loader.load(
             f"levels/{target}", keep_player=True, current_player=self.player
         )
+        self.vision.load_level(self.world.level)
         self._assign_blood_group()
 
     def _restart(self) -> None:
@@ -301,6 +310,7 @@ class GameScene:
         self.blood_drops.empty()
         self.player, self.weapon, self.camera, self.hud = \
             self.level_loader.load(self.FIRST_LEVEL)
+        self.vision.load_level(self.world.level)
         self._assign_blood_group()
 
     # Helpers
