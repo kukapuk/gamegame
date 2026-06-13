@@ -42,6 +42,7 @@ class GameScene:
         self.enemy_bullets = pygame.sprite.Group()
         self.npcs          = pygame.sprite.Group()
         self.blood_drops   = pygame.sprite.Group()
+        self.casings       = pygame.sprite.Group()
 
         # Системы
         self.loot         = LootManager(self.world_items)
@@ -78,6 +79,7 @@ class GameScene:
             npcs=self.npcs,
             world_manager=self.world,
             spawn_manager=self.spawn,
+            casings_group=self.casings,
         )
 
         self.renderer      = Renderer(settings, clock)
@@ -136,6 +138,7 @@ class GameScene:
             save_manager    = self.save_manager,
             audio_manager   = self.audio,
             blood_drops     = self.blood_drops,
+            casings         = self.casings,
             i_hold_progress = i_hold_progress,
             player_dead     = self.player_dead,
             debug           = self.debug,
@@ -240,6 +243,7 @@ class GameScene:
         self.enemy_bullets.update(dt)
         self.world_items.update(dt)
         self.blood_drops.update(dt)
+        self.casings.update(dt)
         self.weapon.update(dt, self.camera.get_offset(), self.hud.is_open())
         self.audio.update(dt)
         self.loot.update(self.player)

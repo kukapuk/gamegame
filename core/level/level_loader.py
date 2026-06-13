@@ -28,6 +28,7 @@ class LevelLoader:
         npcs:          pygame.sprite.Group,
         world_manager,
         spawn_manager: SpawnManager,
+        casings_group: pygame.sprite.Group = None,
     ) -> None:
         self.s             = settings
         self.all_sprites   = all_sprites
@@ -38,6 +39,7 @@ class LevelLoader:
         self.npcs          = npcs
         self.world         = world_manager
         self.spawn         = spawn_manager
+        self.casings_group = casings_group
 
     def load(
         self,
@@ -97,6 +99,7 @@ class LevelLoader:
             settings=self.s,
             bullet_group=self.bullets,
             all_sprites=self.all_sprites,
+            casings_group=self.casings_group,
         )
 
     def _sync_weapon(self, player, weapon) -> None:

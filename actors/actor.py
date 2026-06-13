@@ -29,6 +29,48 @@ class BloodDrop(pygame.sprite.Sprite):
         self.image.set_alpha(alpha)
 
 
+class Casing(pygame.sprite.Sprite):
+    """Гильза — маленький золотой прямоугольник, вылетает при выстреле."""
+
+    LIFETIME = 6.0
+    W, H     = 4, 2
+
+    def __init__(
+        self,
+        pos:       pygame.math.Vector2,
+        aim_dir:   pygame.math.Vector2,
+        groups:    list = (),
+    ) -> None:
+        super().__init__(*groups)
+
+        # Гильза вылетает перпендикулярно стволу (вправо относительно aim)
+        perp = pygame.math.Vector2(-aim_dir.y, aim_dir.x)
+        speed = random.uniform(60, 110)
+        self._vel = perp * speed + aim_dir * random.uniform(-20, 20)
+
+        ox = random.randint(-2, 2)
+        oy = random.randint(-2, 2)
+        self._pos = pygame.math.Vector2(pos.x + ox, pos.y + oy)
+
+        self.image = pygame.Surface((self.W, self.H), pygame.SRCALPHA)
+        self.image.fill((210, 170, 60))
+        self.rect  = self.image.get_rect(center=(round(self._pos.x), round(self._pos.y)))
+        self._lifetime = self.LIFETIME
+
+    def update(self, dt: float) -> None:
+        self._lifetime -= dt
+        if self._lifetime <= 0:
+            self.kill()
+            return
+        # торможение
+        self._vel *= max(0.0, 1.0 - dt * 6)
+        self._pos += self._vel * dt
+        self.rect.center = (round(self._pos.x), round(self._pos.y))
+
+        alpha = max(0, int(255 * self._lifetime / self.LIFETIME))
+        self.image.set_alpha(alpha)
+
+
 class Actor(pygame.sprite.Sprite):
     """
     Base class for every entity in the game: player, enemies, NPCs.

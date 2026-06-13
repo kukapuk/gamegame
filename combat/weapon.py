@@ -5,6 +5,7 @@ from core.settings import Settings
 from combat.bullet import Bullet
 from items.weapon_item import WeaponItem, DIRTY_THRESHOLD, FILTHY_THRESHOLD
 from items.ammo import AmmoItem
+from actors.actor import Casing
 
 UNJAM_TIME = 0.5   # секунд на передёргивание затвора
 
@@ -22,6 +23,7 @@ class Weapon(pygame.sprite.Sprite):
         bullet_group: pygame.sprite.Group,
         all_sprites: pygame.sprite.Group,
         weapon_item: WeaponItem = None,
+        casings_group: pygame.sprite.Group = None,
     ) -> None:
         super().__init__(all_sprites)
 
@@ -29,6 +31,7 @@ class Weapon(pygame.sprite.Sprite):
         self.settings     = settings
         self.bullet_group = bullet_group
         self.all_sprites  = all_sprites
+        self.casings_group = casings_group
 
         self._fire_cooldown: float = 0.0
         self._reload_timer: float  = 0.0
@@ -190,6 +193,10 @@ class Weapon(pygame.sprite.Sprite):
         self._silence_timer = 0.0
         self._recoil_offset = s.recoil_distance
 
+        # гильза
+        if self.casings_group is not None:
+            Casing(self.owner.pos, self.aim_dir, groups=[self.casings_group])
+
         if self.mag_current == 0:
             self.try_reload()
 
@@ -346,6 +353,15 @@ class Weapon(pygame.sprite.Sprite):
         if delta.length() > 0:
             self.aim_dir      = delta.normalize()
             self.owner.facing = self.aim_dir.copy()
+
+        # шум прицела при спринте
+        if getattr(self.owner, "is_sprinting", False):
+            import math as _math
+            sway = _math.sin(pygame.time.get_ticks() * 0.008) * 0.08
+            perp = pygame.math.Vector2(-self.aim_dir.y, self.aim_dir.x)
+            noisy = self.aim_dir + perp * sway
+            if noisy.length() > 0:
+                self.aim_dir = noisy.normalize()
 
     def _update_transform(self) -> None:
         angle        = -math.degrees(math.atan2(self.aim_dir.y, self.aim_dir.x))
