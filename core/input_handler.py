@@ -165,7 +165,7 @@ class InputHandler:
             result.dash = True
         elif key == pygame.K_r:
             result.reload = True
-        elif key == pygame.K_q:
+        elif key == pygame.K_t:
             result.unjam = True
         elif key == pygame.K_f:
             result.use_item = True

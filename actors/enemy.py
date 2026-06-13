@@ -82,6 +82,7 @@ class Enemy(Actor):
         self.pathfinder            = None
 
         self.enemies_group = None
+        self._popup_group  = None   # задаётся снаружи, как _blood_group
         self._separation_radius: float = 40.0
         self._separation_force: float  = 180.0
 
@@ -95,6 +96,13 @@ class Enemy(Actor):
         self._bullet_damage: int    = 0
         self._bullet_armor_pen: int  = 0
         self._bullet_color: tuple   = (255, 200, 50)
+
+        # визуал оружия (только для shooter)
+        self.weapon_image: pygame.Surface = None
+        self.weapon_rect:  pygame.Rect    = None
+        self._weapon_w: int = 0
+        self._weapon_h: int = 0
+        self._weapon_color: tuple = (160, 160, 160)
 
         self.vision_range: float = self.VISION_RANGE
         self.vision_angle: float = self.VISION_ANGLE
@@ -115,6 +123,32 @@ class Enemy(Actor):
             target.take_damage(damage)
             self._contact_cooldown = cooldown
     
+    def take_damage(self, amount: int) -> None:
+        from actors.actor import DamagePopup
+        from combat.calculator import HitZone
+        headshot = getattr(self, "last_hit_zone", None) == HitZone.HEAD
+        if self._popup_group is not None and amount > 0:
+            DamagePopup(self.pos, amount, headshot=headshot, groups=[self._popup_group])
+        was_alive = self.alive
+        super().take_damage(amount)
+        if was_alive and not self.alive:
+            self._notify_allies_of_death()
+
+    def _notify_allies_of_death(self) -> None:
+        """Враги в радиусе VISION_RANGE переходят в ALERT."""
+        if not self.enemies_group:
+            return
+        for other in self.enemies_group:
+            if other is self:
+                continue
+            dist = (other.pos - self.pos).length()
+            if dist <= self.VISION_RANGE * 1.5:
+                if other.state == EnemyState.IDLE:
+                    other.state = EnemyState.ALERT
+                    other._alert_timer       = other.ALERT_TIMEOUT
+                    other._alert_react_timer = other.ALERT_REACT_DELAY
+                    other._last_known_pos    = pygame.math.Vector2(self.pos)
+
     def set_patrol(self, points: list[tuple[float, float]]) -> None:
         self._patrol_points = [pygame.math.Vector2(p) for p in points]
         self._patrol_index  = 0
@@ -413,6 +447,24 @@ class Enemy(Actor):
             self._ai_update(dt)
             self._apply_separation()
         super().update(dt, walls)
+        self._update_weapon_visual()
+
+    def _update_weapon_visual(self) -> None:
+        if not self._weapon_w:
+            self.weapon_image = None
+            return
+        base = pygame.Surface((self._weapon_w, self._weapon_h), pygame.SRCALPHA)
+        base.fill(self._weapon_color)
+        angle = -math.degrees(math.atan2(self.facing.y, self.facing.x))
+        facing_left = self.facing.x < 0
+        base = pygame.transform.flip(base, False, facing_left)
+        self.weapon_image = pygame.transform.rotate(base, angle)
+        self.weapon_rect  = self.weapon_image.get_rect()
+        offset = self.facing * 18
+        self.weapon_rect.center = (
+            round(self.pos.x + offset.x),
+            round(self.pos.y + offset.y),
+        )
 
 
 def _segment_intersects_rect(p1, p2, rect) -> bool:
@@ -496,5 +548,9 @@ def make_shooter(
     e._bullet_group     = bullet_group
     e._all_sprites      = all_sprites
     e._ai_update        = e._ai_shooter
+
+    e._weapon_w     = 22
+    e._weapon_h     = 7
+    e._weapon_color = (180, 100, 220)
 
     return e

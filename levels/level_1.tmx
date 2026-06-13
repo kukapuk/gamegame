@@ -50,7 +50,7 @@
 </data>
  </layer>
  <objectgroup id="5" name="objects">
-  <object id="1" name="enemy_grunt_1" type="enemy_grunt" x="280" y="184" width="48" height="48">
+  <object id="1" name="enemy_grunt_1" type="enemy_grunt" x="970.116" y="165.515" width="48" height="48">
    <properties>
     <property name="armor_class" type="int" value="1"/>
     <property name="patrol_x1" type="float" value="800"/>
@@ -114,7 +114,7 @@
    </properties>
   </object>
   <object id="18" x="174.323" y="987.828"/>
-  <object id="20" name="enemy_shooter_1" type="enemy_shooter" x="1430.9" y="159.796" width="47.2124" height="50.8441">
+  <object id="20" name="enemy_shooter_1" type="enemy_shooter" x="1039.63" y="412.428" width="47.2124" height="50.8441">
    <properties>
     <property name="armor_class" type="int" value="2"/>
     <property name="bullet_armor_pen" type="int" value="2"/>

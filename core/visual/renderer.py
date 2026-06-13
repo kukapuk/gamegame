@@ -47,6 +47,7 @@ class Renderer:
         audio_manager,
         blood_drops:   pygame.sprite.Group = None,
         casings:       pygame.sprite.Group = None,
+        popups:        pygame.sprite.Group = None,
         i_hold_progress: float = 0.0,
         player_dead: bool = False,
         debug: bool = False,
@@ -67,6 +68,10 @@ class Renderer:
         self._draw_sprites(screen, camera, level, world_items, npcs, enemies,
                            enemy_bullets, bullets, player, weapon)
         self._draw_enemy_hp_bars(screen, camera, enemies)
+
+        if popups:
+            for popup in popups:
+                screen.blit(popup.image, popup.rect.move(-offset.x, -offset.y))
 
         hud.draw_world_hover(screen, offset)
         loot_manager.draw_hint(screen, offset)
@@ -107,6 +112,10 @@ class Renderer:
         for sprite in [*enemy_bullets.sprites(), *bullets.sprites(),
                        *enemies.sprites(), player]:
             screen.blit(sprite.image, camera.apply(sprite.rect))
+        # оружие врагов
+        for enemy in enemies:
+            if enemy.weapon_image is not None and enemy.weapon_rect is not None:
+                screen.blit(enemy.weapon_image, camera.apply(enemy.weapon_rect))
         if weapon.has_weapon:
             screen.blit(weapon.image, camera.apply(weapon.rect))
 

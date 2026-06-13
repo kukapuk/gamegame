@@ -5,7 +5,7 @@ from core.settings import Settings
 from combat.bullet import Bullet
 from items.weapon_item import WeaponItem, DIRTY_THRESHOLD, FILTHY_THRESHOLD
 from items.ammo import AmmoItem
-from actors.actor import Casing
+from actors.actor import Casing, Magazine
 
 UNJAM_TIME = 0.5   # секунд на передёргивание затвора
 
@@ -121,6 +121,9 @@ class Weapon(pygame.sprite.Sprite):
         if getattr(self.owner, "arms_damaged", False):
             reload_time *= 1.5
         self._reload_timer = reload_time
+        # выбрасываем магазин
+        if self.casings_group is not None and self.mag_current > 0:
+            Magazine(self.owner.pos, groups=[self.casings_group])
 
     def try_unjam(self) -> None:
         """Q — передёрнуть затвор: снимает клин и выбрасывает патрон.
@@ -232,6 +235,8 @@ class Weapon(pygame.sprite.Sprite):
             self._weapon_item.jammed     = False
             self.mag_current            -= 1
             self._weapon_item.mag_current = self.mag_current
+            if self.casings_group is not None:
+                Casing(self.owner.pos, self.aim_dir, groups=[self.casings_group])
 
     def _update_recoil(self, dt: float) -> None:
         if self._recoil_offset <= 0:

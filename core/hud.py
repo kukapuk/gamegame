@@ -289,34 +289,33 @@ class HUD:
         y       = self._bar_baseline() - ss
 
         if weapon.jammed:
-            # JAMMED — мигающий красный, подсказка
             lbl = self.font_md.render("JAMMED", True, (220, 60, 60))
-            screen.blit(lbl, (x, y + (ss - lbl.get_height()) // 2))
-            hint = self.font_sm.render("[R] reload  [Q] unjam", True, (160, 80, 80))
-            screen.blit(hint, (x, y + (ss - hint.get_height()) // 2 + 14))
+            screen.blit(lbl, (x, y))
+            hint = self.font_sm.render("[R] reload  [T] unjam", True, (160, 80, 80))
+            screen.blit(hint, (x, y + lbl.get_height() + 2))
             return
 
         if weapon.unjamming:
             progress = 1.0 - weapon._unjam_timer / 0.5
             bw, bh   = 90, 5
-            pygame.draw.rect(screen, (40, 40, 60),   (x, y + ss - bh - 2, bw, bh))
-            pygame.draw.rect(screen, (200, 100, 40), (x, y + ss - bh - 2, int(bw * progress), bh))
             lbl = self.font_md.render("CYCLING...", True, (200, 120, 60))
-            screen.blit(lbl, (x, y + (ss - lbl.get_height()) // 2))
+            screen.blit(lbl, (x, y))
+            pygame.draw.rect(screen, (40, 40, 60),   (x, y + lbl.get_height() + 4, bw, bh))
+            pygame.draw.rect(screen, (200, 100, 40), (x, y + lbl.get_height() + 4, int(bw * progress), bh))
             return
 
         if weapon.reloading:
             progress = 1.0 - weapon._reload_timer / weapon._weapon_item.stats.reload_time
             bw, bh   = 90, 5
-            pygame.draw.rect(screen, (40, 40, 60),   (x, y + ss - bh - 2, bw, bh))
-            pygame.draw.rect(screen, (180, 140, 40), (x, y + ss - bh - 2, int(bw * progress), bh))
             lbl = self.font_md.render("RELOADING", True, (220, 180, 60))
+            screen.blit(lbl, (x, y))
+            pygame.draw.rect(screen, (40, 40, 60),   (x, y + lbl.get_height() + 4, bw, bh))
+            pygame.draw.rect(screen, (180, 140, 40), (x, y + lbl.get_height() + 4, int(bw * progress), bh))
         else:
             text  = f"{weapon.mag_current} / {weapon.mag_size}"
             color = (220, 220, 220) if weapon.mag_current > 0 else (220, 60, 60)
             lbl   = self.font_md.render(text, True, color)
-
-        screen.blit(lbl, (x, y + (ss - lbl.get_height()) // 2))
+            screen.blit(lbl, (x, y + (ss - lbl.get_height()) // 2))
 
         # полоска чистоты оружия
         wi = weapon._weapon_item

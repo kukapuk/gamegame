@@ -43,6 +43,7 @@ class GameScene:
         self.npcs          = pygame.sprite.Group()
         self.blood_drops   = pygame.sprite.Group()
         self.casings       = pygame.sprite.Group()
+        self.popups        = pygame.sprite.Group()
 
         # Системы
         self.loot         = LootManager(self.world_items)
@@ -97,6 +98,7 @@ class GameScene:
         self.player._blood_group = self.blood_drops
         for enemy in self.enemies:
             enemy._blood_group = self.blood_drops
+            enemy._popup_group = self.popups
 
     def update(self, dt: float) -> str:
         """
@@ -139,6 +141,7 @@ class GameScene:
             audio_manager   = self.audio,
             blood_drops     = self.blood_drops,
             casings         = self.casings,
+            popups          = self.popups,
             i_hold_progress = i_hold_progress,
             player_dead     = self.player_dead,
             debug           = self.debug,
@@ -244,6 +247,7 @@ class GameScene:
         self.world_items.update(dt)
         self.blood_drops.update(dt)
         self.casings.update(dt)
+        self.popups.update(dt)
         self.weapon.update(dt, self.camera.get_offset(), self.hud.is_open())
         self.audio.update(dt)
         self.loot.update(self.player)
