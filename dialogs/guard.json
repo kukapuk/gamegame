@@ -2,44 +2,85 @@
   "npc_name": "Guard",
   "nodes": {
     "start": {
-      "text": "Hey! Stop right there. Who are you?",
+      "text": "Эй! [key]Стой[/key] прямо там. Кто ты такой и что тебе здесь нужно?",
+      "typing_speed": "normal",
+      "on_interrupt": "interrupted_start",
       "choices": [
-        {"text": "Just a traveler passing through.", "next": "response_traveler"},
-        {"text": "None of your business.", "next": "response_rude"},
-        {"text": "I need information.", "next": "response_info"}
+        {"text": "Просто путник.", "next": "response_traveler"},
+        {"text": "Не твоё дело.", "next": "response_rude"},
+        {"text": "Мне нужна информация.", "next": "response_info"}
+      ]
+    },
+    "interrupted_start": {
+      "text": "[danger]Эй![/danger] Я ещё не закончил говорить. Так в чём дело?",
+      "typing_speed": "fast",
+      "choices": [
+        {"text": "Извини, продолжай.", "next": "start_resume"},
+        {"text": "Мне некогда.", "next": "response_rude"}
+      ]
+    },
+    "start_resume": {
+      "text": "...[key]Хм.[/key] Так кто ты такой?",
+      "typing_speed": "slow",
+      "on_interrupt": "interrupted_again",
+      "choices": [
+        {"text": "Просто путник.", "next": "response_traveler"},
+        {"text": "Мне нужна информация.", "next": "response_info"}
+      ]
+    },
+    "interrupted_again": {
+      "text": "Ты [danger]снова[/danger] перебиваешь меня. Последний раз предупреждаю.",
+      "typing_speed": "urgent",
+      "choices": [
+        {"text": "Ладно, ладно. Говори.", "next": "start_resume"},
+        {"text": "Попробуй останови меня.", "next": "end_hostile"}
       ]
     },
     "response_traveler": {
-      "text": "Hmm. These are dangerous times for travelers. Watch yourself out there.",
+      "text": "Хм. [place]Опасные[/place] времена для путников. Держись подальше от [place]восточного крыла[/place].",
+      "typing_speed": "slow",
       "choices": [
-        {"text": "Thanks for the warning.", "next": "end_friendly"}
+        {"text": "Спасибо за предупреждение.", "next": "end_friendly"}
       ]
     },
     "response_rude": {
-      "text": "Watch your mouth. Move along before I change my mind.",
+      "text": "[danger]Следи за языком.[/danger] Проваливай, пока я не передумал.",
+      "typing_speed": "fast",
       "choices": [
-        {"text": "Fine, fine.", "next": "end_hostile"}
+        {"text": "Ладно, ладно.", "next": "end_hostile"}
       ]
     },
     "response_info": {
-      "text": "Information? Depends what you're looking for. I've seen some strange things lately.",
+      "text": "Информация? Зависит от того, что ищешь. Я видел [key]странные вещи[/key] в последнее время.",
+      "typing_speed": "normal",
+      "on_interrupt": "interrupted_info",
       "choices": [
-        {"text": "What kind of strange things?", "next": "info_details"},
-        {"text": "Never mind.", "next": "end_friendly"}
+        {"text": "Что за странные вещи?", "next": "info_details"},
+        {"text": "Неважно.", "next": "end_friendly"}
+      ]
+    },
+    "interrupted_info": {
+      "text": "Дай [danger]договорить![/danger] Так вот...",
+      "typing_speed": "fast",
+      "choices": [
+        {"text": "Хорошо, слушаю.", "next": "info_details"}
       ]
     },
     "info_details": {
-      "text": "Movement at night. Shadows that shouldn't be there. Stay away from the east wing.",
+      "text": "[hint]Движение ночью.[/hint] Тени там, где их не должно быть. Держись подальше от [danger]восточного крыла[/danger].",
+      "typing_speed": "slow",
       "choices": [
-        {"text": "Understood. I'll be careful.", "next": "end_friendly"}
+        {"text": "Понял. Буду осторожен.", "next": "end_friendly"}
       ]
     },
     "end_friendly": {
-      "text": "Stay safe out there.",
+      "text": "Береги себя.",
+      "typing_speed": "normal",
       "choices": []
     },
     "end_hostile": {
       "text": "...",
+      "typing_speed": "slow",
       "choices": []
     }
   }

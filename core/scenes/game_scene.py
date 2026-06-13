@@ -244,6 +244,7 @@ class GameScene:
 
     def _update(self, dt: float) -> None:
         if self.dialog.active:
+            self.dialog.update(dt)
             self.camera.follow(self.player)
             return
 
