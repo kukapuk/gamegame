@@ -22,6 +22,8 @@ class Level:
         self._floor_surfaces: list[tuple[pygame.Surface, pygame.Rect]] = []
         self.objects: list[dict] = []
         self.lights:  list[dict] = []
+        # (tile_x, tile_y) → surface_type str
+        self.surface_map: dict[tuple[int,int], str] = {}
 
         self._load(path)
 
@@ -53,6 +55,10 @@ class Level:
                 scaled = pygame.transform.scale(surf, (ts, ts))
                 rect   = pygame.Rect(x * ts, y * ts, ts, ts)
                 self._floor_surfaces.append((scaled, rect))
+            # читаем surface_type из свойств тайла
+            props = tiled.get_tile_properties_by_gid(gid)
+            if props and "surface_type" in props:
+                self.surface_map[(x, y)] = props["surface_type"]
 
     def _load_walls(self, tiled, layer: pytmx.TiledTileLayer) -> None:
         ts = self.tile_size

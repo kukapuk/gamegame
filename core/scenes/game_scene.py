@@ -96,6 +96,7 @@ class GameScene:
 
         self.vision.load_level(self.world.level)
         self._assign_blood_group()
+        self.player.surface_map = self.world.level.surface_map
 
     def _assign_blood_group(self) -> None:
         self.player._blood_group = self.blood_drops
@@ -314,6 +315,7 @@ class GameScene:
         )
         self.vision.load_level(self.world.level)
         self._assign_blood_group()
+        self.player.surface_map = self.world.level.surface_map
 
     def _restart(self) -> None:
         self.player_dead = False
@@ -322,6 +324,7 @@ class GameScene:
             self.level_loader.load(self.FIRST_LEVEL)
         self.vision.load_level(self.world.level)
         self._assign_blood_group()
+        self.player.surface_map = self.world.level.surface_map
 
     # Helpers
 

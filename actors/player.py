@@ -33,6 +33,7 @@ class Player(Actor):
             groups=groups,
         )
         self.settings = settings
+        self.surface_map: dict = {}   # задаётся снаружи из level
         self.stats    = Stats()
         self.speed    = self.stats.speed
 
@@ -217,6 +218,20 @@ class Player(Actor):
                 self.stamina + self.stats.stamina_regen * dt,
             )
 
+    def _get_surface_mult(self) -> float:
+        """Множитель радиуса шага по типу поверхности под игроком."""
+        ts  = self.settings.grid_size
+        tx  = int(self.pos.x) // ts
+        ty  = int(self.pos.y) // ts
+        surface = self.surface_map.get((tx, ty), "default")
+        return {
+            "grass":    0.5,    # трава — тише обычного
+            "concrete": 1.0,    # бетон — норма
+            "asphalt":  1.3,    # асфальт — громче
+            "metal":    2.2,    # металл — очень громко
+            "default":  1.0,
+        }.get(surface, 1.0)
+
     def _get_step_radius_mult(self) -> float:
         from items.armor import Armor
         armor_slots = [s for s in self.pouch.typed_slots if s.allowed_type == ItemType.ARMOR]
@@ -232,7 +247,7 @@ class Player(Actor):
             self._step_timer = 0.0
             return
         s    = self.settings
-        mult = self._get_step_radius_mult()
+        mult = self._get_step_radius_mult() * self._get_surface_mult()
         if self.is_crouching:
             interval = s.step_interval_crouch
             radius   = s.step_radius_crouch * mult
