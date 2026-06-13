@@ -219,10 +219,16 @@ class GridBackpackUI:
         if drag.source_grid is not None:
             result["drop_item"] = drag.item
         elif drag.source_slot is not None:
-            # вернуть в исходный pouch-слот (он должен быть пустым — мы взяли оттуда)
-            if drag.source_slot.item is None:
+            # Если курсор вне панели рюкзака — дропаем на пол
+            # Если рюкзак открыт и курсор над сеткой но не влезло — тоже на пол
+            px, py = int(self._panel_pos.x), int(self._panel_pos.y)
+            pw, ph = self._panel_size
+            inside_panel = pygame.Rect(px, py, pw, ph).collidepoint(pos)
+            if inside_panel and drag.source_slot.item is None:
+                # промахнулся внутри открытой панели — возврат в слот
                 drag.source_slot.item = drag.item
             else:
+                # дропнул вне панели — на пол
                 result["drop_item"] = drag.item
         # из мира — WorldItem остаётся на полу, ничего не делаем
 

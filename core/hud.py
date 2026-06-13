@@ -85,17 +85,17 @@ class HUD:
         self._info_panels           = []
 
     def is_open(self) -> bool:
-        return self.backpack_open
+        return self.backpack_open or self.pouch_open
 
     def handle_mouse_down(self, pos: tuple) -> None:
-        if not self.backpack_open:
+        if not self.is_open():
             return
         if self.handle_info_panels_mouse_down(pos):
             return
-        # Сетка рюкзака
-        if self._grid_ui.handle_mouse_down(pos):
+        # Сетка рюкзака — только если рюкзак открыт
+        if self.backpack_open and self._grid_ui.handle_mouse_down(pos):
             return
-        # Pouch-слоты — конвертируем в GridDragState чтобы тень и точная вставка работали
+        # Pouch-слоты — drag через grid_ui
         for slot, rect in self._pouch_interactive_rects():
             if rect.collidepoint(pos) and not slot.empty:
                 item = slot.take()
@@ -214,7 +214,7 @@ class HUD:
                 self._hovered_rect = rect
                 if not slot.empty:
                     self._tooltip_text = slot.item.get_tooltip()
-        if not self._tooltip_text:
+        if not self._tooltip_text and self.backpack_open:
             self._tooltip_text = self._grid_ui.get_tooltip(pos)
 
     def handle_key_down(self, key: int) -> None:

@@ -151,7 +151,7 @@ class GameScene:
             return "running"
 
         if getattr(inp, "toggle_backpack", False):
-            if self.hud.is_open():
+            if self.hud.backpack_open:
                 self.hud.close_backpack()
             else:
                 self.hud.open_backpack()
