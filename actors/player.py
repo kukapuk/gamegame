@@ -59,7 +59,7 @@ class Player(Actor):
         self.use_time_total: float   = 0.0
 
         self.pouch = Inventory(
-            capacity=5,
+            capacity=4,
             typed_slots=[ItemType.WEAPON, ItemType.WEAPON, ItemType.HELMET, ItemType.ARMOR],
             owner=self,
         )
