@@ -67,6 +67,8 @@ class Settings:
     step_radius_walk:   float = 120.0
     step_radius_sprint: float = 180.0
     step_radius_dash:   float = 240.0
+    step_radius_crouch: float = 35.0    # очень тихо
     step_interval_walk: float = 0.4
     step_interval_sprint: float = 0.2
+    step_interval_crouch: float = 0.6   # медленнее шаги
     crouch_speed_mult:  float = 0.8

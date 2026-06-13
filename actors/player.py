@@ -228,12 +228,15 @@ class Player(Actor):
 
     def _update_footsteps(self, dt: float) -> None:
         moving = self._move_dir.length() > 0 and not self._is_dashing
-        if not moving or self.is_crouching:
+        if not moving:
             self._step_timer = 0.0
             return
         s    = self.settings
         mult = self._get_step_radius_mult()
-        if self.is_sprinting:
+        if self.is_crouching:
+            interval = s.step_interval_crouch
+            radius   = s.step_radius_crouch * mult
+        elif self.is_sprinting:
             interval = s.step_interval_sprint
             radius   = s.step_radius_sprint * mult
         else:
