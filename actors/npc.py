@@ -1,5 +1,6 @@
 import pygame
 from actors.actor import Actor
+from core.managers.faction_manager import Faction
 
 
 class NPC(Actor):
@@ -27,6 +28,7 @@ class NPC(Actor):
         )
         self.name          = name
         self.dialog_file   = dialog_file
+        self.faction       = Faction.NEUTRAL   # переопределяется при спавне
         self.velocity.update(0, 0)
         self._font         = pygame.font.SysFont("monospace", 12)
         self._name_surf    = self._font.render(name, True, self.NAME_COLOR)

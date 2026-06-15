@@ -2,6 +2,7 @@
 enemy_factory.py — фабричные функции для создания врагов.
 """
 from actors.enemy import Enemy
+from core.managers.faction_manager import Faction
 from combat.enemy_weapon import (
     EnemyWeapon,
     pistol_stats, smg_stats, assault_rifle_stats,
@@ -19,7 +20,9 @@ def _attach_weapon(e: Enemy, stats) -> None:
 
 def make_grunt(pos, target, armor_class: int = 0, groups: list = ()) -> Enemy:
     """Грант — ближний бой, без стрельбы."""
-    return Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
+    e = Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
+    e.faction = Faction.BANDIT
+    return e
 
 
 def make_shooter(
@@ -46,6 +49,7 @@ def make_shooter(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 22, 7
     e._weapon_color = (180, 100, 220)
+    e.faction = Faction.BANDIT
 
     stats = pistol_stats()
     stats.armor_pen = bullet_armor_pen
@@ -74,7 +78,7 @@ def make_smg_shooter(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 20, 6
     e._weapon_color = (180, 120, 60)
-
+    e.faction = Faction.BANDIT
     _attach_weapon(e, smg_stats())
     return e
 
@@ -101,7 +105,7 @@ def make_rifle_shooter(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 26, 7
     e._weapon_color = (60, 100, 60)
-
+    e.faction = Faction.MILITARY
     _attach_weapon(e, assault_rifle_stats())
     return e
 
@@ -127,7 +131,7 @@ def make_shotgun_shooter(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 24, 8
     e._weapon_color = (150, 80, 40)
-
+    e.faction = Faction.BANDIT
     _attach_weapon(e, shotgun_stats())
     return e
 
@@ -155,6 +159,6 @@ def make_sniper(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 32, 6
     e._weapon_color = (40, 60, 90)
-
+    e.faction = Faction.ELITE
     _attach_weapon(e, sniper_stats())
     return e

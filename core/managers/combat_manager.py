@@ -2,6 +2,7 @@ import random
 import pygame
 from combat.calculator import resolve_hit, HitZone
 from core.settings import Settings
+from core.managers.faction_manager import faction_mgr, Faction, Relation
 
 
 def _armor_protects_limbs(player) -> bool:
@@ -53,6 +54,14 @@ class CombatManager:
                     enemy.last_hit_zone = HitZone.TORSO
                     enemy.take_damage(enemy.hp)
                     continue
+
+                # ── Провокация нейтрала ───────────────────────────────
+                player_faction = getattr(player, 'faction', Faction.PLAYER)
+                enemy_faction  = getattr(enemy,  'faction', Faction.BANDIT)
+                base_rel = faction_mgr.get_relation(enemy_faction, player_faction)
+                if base_rel == Relation.NEUTRAL:
+                    faction_mgr.provoke(id(enemy), player_faction)
+                    enemy.state = enemy.state  # не меняем state, просто запоминаем
 
                 hit_head = enemy.head_rect.colliderect(bullet.rect)
                 result   = resolve_hit(

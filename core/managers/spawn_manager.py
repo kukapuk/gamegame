@@ -1,6 +1,17 @@
 import pygame
 from core.settings import Settings
 from core.managers.loot_manager import LootManager
+from core.managers.faction_manager import Faction
+
+_FACTION_MAP = {
+    "player":    Faction.PLAYER,
+    "mercenary": Faction.MERCENARY,
+    "bandit":    Faction.BANDIT,
+    "military":  Faction.MILITARY,
+    "elite":     Faction.ELITE,
+    "civilian":  Faction.CIVILIAN,
+    "neutral":   Faction.NEUTRAL,
+}
 
 
 class SpawnManager:
@@ -76,9 +87,11 @@ class SpawnManager:
             armor_class=props.get("armor_class", 0),
             groups=[self.all_sprites, self.enemies],
         )
-        e.pathfinder       = pathfinder
-        e.enemies_group    = self.enemies
-        e.helmet_class     = props.get("helmet_class", 0)
+        e.pathfinder    = pathfinder
+        e.enemies_group = self.enemies
+        e.helmet_class  = props.get("helmet_class", 0)
+        if "faction" in props:
+            e.faction = _FACTION_MAP.get(props["faction"].lower(), e.faction)
         patrol = self._parse_patrol(props)
         if patrol:
             e.set_patrol(patrol)
@@ -93,6 +106,12 @@ class SpawnManager:
             bullet_group=self.enemy_bullets,
             all_sprites=self.all_sprites,
         )
+        e.pathfinder        = pathfinder
+        e.enemies_group     = self.enemies
+        e.helmet_class      = props.get("helmet_class", 0)
+        e._bullet_armor_pen = props.get("bullet_armor_pen", 0)
+        if "faction" in props:
+            e.faction = _FACTION_MAP.get(props["faction"].lower(), e.faction)
         e.pathfinder       = pathfinder
         e.enemies_group    = self.enemies
         e.helmet_class     = props.get("helmet_class", 0)
@@ -119,6 +138,8 @@ class SpawnManager:
         )
         e.pathfinder    = pathfinder
         e.enemies_group = self.enemies
+        if "faction" in props:
+            e.faction = _FACTION_MAP.get(props["faction"].lower(), e.faction)
         patrol = self._parse_patrol(props)
         if patrol:
             e.set_patrol(patrol)

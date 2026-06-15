@@ -4,6 +4,7 @@ from items.stats import Stats
 from items.inventory import Inventory, GridInventory
 from items.item import ItemType
 from core.settings import Settings
+from core.managers.faction_manager import Faction
 
 LEGS_SPEED_MULT = 0.6
 
@@ -33,7 +34,8 @@ class Player(Actor):
             groups=groups,
         )
         self.settings = settings
-        self.surface_map: dict = {}   # задаётся снаружи из level
+        self.surface_map: dict = {}
+        self.faction  = Faction.PLAYER
         self.stats    = Stats()
         self.speed    = self.stats.speed
 

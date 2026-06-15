@@ -6,6 +6,7 @@ import math
 from actors.actor import Actor
 from actors.geometry import segment_intersects_rect, ray_rect_hit_point
 from items.stats import Stats
+from core.managers.faction_manager import Faction
 
 
 class EnemyState:
@@ -51,6 +52,7 @@ class Enemy(Actor):
         self.armor_class  = armor_class
         self.helmet_class = 0
         self.walls        = None
+        self.faction      = Faction.BANDIT   # переопределяется в фабриках
 
         self.stats  = Stats(max_hp=60, speed=120.0, dash_cooldown=999, dash_stamina_cost=999)
         self.hp     = self.stats.max_hp
@@ -167,6 +169,14 @@ class Enemy(Actor):
         self._path           = []
 
     def can_see_target(self) -> bool:
+        from core.managers.faction_manager import faction_mgr
+        # не атакуем не-враждебных
+        target_faction = getattr(self.target, 'faction', None)
+        if target_faction is not None:
+            if not faction_mgr.is_hostile(self.faction, target_faction,
+                                          a_id=id(self)):
+                return False
+
         delta = self.target.pos - self.pos
         if delta.length() > self.vision_range:
             return False
