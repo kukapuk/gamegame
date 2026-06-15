@@ -9,6 +9,7 @@ from core.managers.world_manager import WorldManager
 from core.managers.spawn_manager import SpawnManager
 from core.level.level_loader import LevelLoader
 from core.visual.renderer import Renderer
+from core.managers.cover_system import cover_system
 from core.visual.vision import VisionSystem
 from core.input_handler import InputHandler
 
@@ -94,6 +95,7 @@ class GameScene:
         self.player, self.weapon, self.camera, self.hud = \
             self.level_loader.load(self.FIRST_LEVEL)
         self._patrol_groups = self.spawn.get_patrol_groups()
+        cover_system.build(self.world.level.walls)
 
         self.vision.load_level(self.world.level)
         self._assign_blood_group()
@@ -332,6 +334,7 @@ class GameScene:
         self._assign_blood_group()
         self.player.surface_map = self.world.level.surface_map
         self._patrol_groups = self.spawn.get_patrol_groups()
+        cover_system.build(self.world.level.walls)
 
     def _restart(self) -> None:
         self.player_dead = False
@@ -342,6 +345,7 @@ class GameScene:
         self._assign_blood_group()
         self.player.surface_map = self.world.level.surface_map
         self._patrol_groups = self.spawn.get_patrol_groups()
+        cover_system.build(self.world.level.walls)
 
     # Helpers
 

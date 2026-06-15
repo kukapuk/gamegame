@@ -202,6 +202,8 @@ class Renderer:
         audio_manager.draw_debug(screen, offset)
         for pg in patrol_groups:
             pg.draw_debug(screen, offset)
+        from core.managers.cover_system import cover_system
+        cover_system.draw_debug(screen, offset, player.pos, player.walls if hasattr(player, "walls") else None)
         world_manager.draw_debug(screen, offset)
         p.draw_debug(screen, offset)
     def _draw_cursor(

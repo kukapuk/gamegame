@@ -120,6 +120,26 @@ class EnemyWeapon:
 
         return True
 
+    def try_fire_suppress(self, owner_pos, direction, extra_spread: float = 25.0) -> bool:
+        """Подавляющий огонь — с большим разбросом, не ждёт cooldown так строго."""
+        if self.reloading:
+            return False
+        if self._fire_cooldown > 0:
+            return False
+        if self.mag_current <= 0:
+            self._start_reload(owner_pos)
+            return False
+        import math, random, pygame
+        # применяем увеличенный разброс вручную
+        angle = math.atan2(direction.y, direction.x)
+        angle += math.radians(random.uniform(-extra_spread, extra_spread))
+        spread_dir = pygame.math.Vector2(math.cos(angle), math.sin(angle))
+        self._shoot_one(owner_pos, spread_dir)
+        self._fire_cooldown = self.stats.fire_rate * 0.7   # чуть быстрее обычного
+        if self.mag_current <= 0:
+            self._start_reload(owner_pos)
+        return True
+
     @property
     def can_fire(self) -> bool:
         return (not self.reloading

@@ -105,7 +105,8 @@ def make_rifle_shooter(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 26, 7
     e._weapon_color = (60, 100, 60)
-    e.faction = Faction.MILITARY
+    e.faction    = Faction.MILITARY
+    e.use_cover  = True
     _attach_weapon(e, assault_rifle_stats())
     return e
 
@@ -159,6 +160,7 @@ def make_sniper(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 32, 6
     e._weapon_color = (40, 60, 90)
-    e.faction = Faction.ELITE
+    e.faction    = Faction.ELITE
+    e.use_cover  = True
     _attach_weapon(e, sniper_stats())
     return e

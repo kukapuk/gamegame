@@ -15,6 +15,9 @@ class EnemyState:
     SEARCH  = "search"
     ALERT   = "alert"
     RETREAT = "retreat"
+    COVER    = "cover"    # движется к укрытию
+    PEEK     = "peek"     # выглядывает из укрытия и стреляет
+    SUPPRESS = "suppress" # подавляющий огонь без прямой видимости
 
 
 DEBUG_COLORS = {
@@ -23,6 +26,9 @@ DEBUG_COLORS = {
     EnemyState.SEARCH:  (220, 180, 60,  40),
     EnemyState.ALERT:   (180, 120, 220, 40),
     EnemyState.RETREAT: (80,  160, 220, 40),
+    EnemyState.COVER:   (60,  180, 220, 40),
+    EnemyState.PEEK:     (220, 140, 60,  40),
+    EnemyState.SUPPRESS: (220, 80,  180, 40),
 }
 
 
@@ -81,6 +87,11 @@ class Enemy(Actor):
 
         self.patrol_group          = None   # PatrolGroup | None
         self._retreat_point            = None   # Vector2 — точка отхода
+        self._cover_point              = None   # Vector2 — точка укрытия
+        self._peek_timer:      float   = 0.0    # сколько выглядывает
+        self._cover_cooldown:  float   = 0.0    # пауза перед следующим поиском укрытия
+        self._suppress_timer:  float   = 0.0    # сколько ещё подавляем
+        self.use_cover:        bool    = False   # включить cover AI (военные/элита)
         self._broken:                  bool  = False  # отступил — больше не атакует
         self.enemies_group         = None
         self._popup_group          = None
@@ -140,6 +151,11 @@ class Enemy(Actor):
         super().take_damage(amount)
         if was_alive and not self.alive:
             self._notify_allies_of_death()
+        elif was_alive and self.use_cover and amount > 0:
+            if self.state == EnemyState.CHASE and self._cover_cooldown <= 0:
+                self.state        = EnemyState.COVER
+                self._cover_point = None
+                self._cover_cooldown = 8.0   # не чаще раза в 8 сек
 
     def _notify_allies_of_death(self) -> None:
         # группа реагирует первой — ближайший идёт проверить
@@ -267,6 +283,11 @@ class Enemy(Actor):
     def _update_state(self, dt: float) -> None:
         if self.state == EnemyState.RETREAT:
             return   # отход не прерывается — только PatrolGroup сбрасывает
+        if self.state in (EnemyState.COVER, EnemyState.PEEK, EnemyState.SUPPRESS):
+            # cover AI управляет переходами сам
+            if self.can_see_target():
+                self._last_known_pos = pygame.math.Vector2(self.target.pos)
+            return
 
         # сломленный бандит при виде игрока снова убегает
         if self._broken and self.can_see_target():
@@ -283,12 +304,15 @@ class Enemy(Actor):
         elif self.state == EnemyState.CHASE:
             if self.can_see_target():
                 self._last_known_pos = pygame.math.Vector2(self.target.pos)
+            elif self.use_cover and self._cover_cooldown <= 0:
+                # военные/элита — подавляют пока идут в укрытие
+                self._suppress_timer = 2.5
+                self.state           = EnemyState.SUPPRESS
             elif not self._provoked_hostile:
                 self.state = EnemyState.SEARCH
                 self._search_rotate_timer = self.SEARCH_ROTATE_TIME
                 self._path = []
             else:
-                # спровоцирован — обновляем цель напрямую, не уходим в search
                 self._last_known_pos = pygame.math.Vector2(self.target.pos)
 
         elif self.state == EnemyState.SEARCH:
@@ -332,6 +356,12 @@ class Enemy(Actor):
         if self.state == EnemyState.RETREAT:
             self._do_retreat(dt)
             return
+        if self.state in (EnemyState.COVER, EnemyState.PEEK):
+            self._do_cover(dt)
+            return
+        if self.state == EnemyState.SUPPRESS:
+            self._do_suppress(dt)
+            return
         if self.state == EnemyState.IDLE:
             self._do_patrol(dt)
             return
@@ -362,8 +392,7 @@ class Enemy(Actor):
             if dist < self._preferred_dist + 120:
                 direction = delta.normalize() if dist > 0 else pygame.math.Vector2(1, 0)
                 fired = self.enemy_weapon.try_fire(self.pos, direction)
-                if not fired and self._provoked_hostile:
-                    print(f"[DBG] no fire: reloading={self.enemy_weapon.reloading} cooldown={self.enemy_weapon._fire_cooldown:.2f} mag={self.enemy_weapon.mag_current} on_fire={self.enemy_weapon.on_fire} bullet_group={self._bullet_group}")
+
         else:
             # legacy путь
             self._shoot_cooldown = max(0.0, self._shoot_cooldown - dt)
@@ -426,6 +455,72 @@ class Enemy(Actor):
             self._retreat_point = None
         else:
             self._follow_path_to(self._retreat_point, dt)
+
+    def _do_cover(self, dt: float) -> None:
+        """Движение к укрытию (COVER) и выглядывание для стрельбы (PEEK)."""
+        from core.managers.cover_system import cover_system
+
+        if self.state == EnemyState.COVER:
+            if self._cover_point is None:
+                # ищем укрытие
+                pt = cover_system.find_cover(self.pos, self.target.pos, self.walls)
+                if pt is None:
+                    # нет укрытий — обычная атака
+                    self.state = EnemyState.CHASE
+                    return
+                self._cover_point = pt
+
+            dist_to_cover = (self.pos - self._cover_point).length()
+            if dist_to_cover < 24:
+                # добрались — переходим в PEEK
+                self.velocity.update(0, 0)
+                self.state      = EnemyState.PEEK
+                self._peek_timer = 0.0
+            else:
+                self._follow_path_to(self._cover_point, dt)
+
+            # обновляем оружие пока идём
+            if self.enemy_weapon:
+                self.enemy_weapon.update(dt, self.pos)
+
+        elif self.state == EnemyState.PEEK:
+            self._peek_timer += dt
+            self.velocity.update(0, 0)
+
+            # стреляем в peek-фазе
+            if self.enemy_weapon:
+                self.enemy_weapon.update(dt, self.pos)
+                delta = self.target.pos - self.pos
+                dist  = delta.length()
+                if dist > 0:
+                    direction = delta.normalize()
+                    self.enemy_weapon.try_fire(self.pos, direction)
+
+            # 1.5 сек выглядываем, потом снова в укрытие
+            if self._peek_timer >= 1.5:
+                self.state        = EnemyState.COVER
+                self._cover_point = None   # ищем снова — вдруг игрок сдвинулся
+                self._peek_timer  = 0.0
+
+    def _do_suppress(self, dt: float) -> None:
+        """Подавляющий огонь — стоим за укрытием, стреляем в last_known_pos с разбросом."""
+        self.velocity.update(0, 0)
+        self._suppress_timer -= dt
+
+        if self.enemy_weapon:
+            self.enemy_weapon.update(dt, self.pos)
+            delta = self._last_known_pos - self.pos
+            if delta.length() > 1:
+                direction = delta.normalize()
+                self.enemy_weapon.try_fire_suppress(self.pos, direction, extra_spread=28.0)
+
+        if self._suppress_timer <= 0:
+            # закончили подавлять — идём в укрытие или CHASE
+            if self.use_cover and self._cover_cooldown <= 0:
+                self.state        = EnemyState.COVER
+                self._cover_point = None
+            else:
+                self.state = EnemyState.CHASE
 
     # ── Combat ────────────────────────────────────────────────────────
 
@@ -544,6 +639,7 @@ class Enemy(Actor):
         if walls is not None:
             self.walls = walls
         self._contact_cooldown = max(0.0, self._contact_cooldown - dt)
+        self._cover_cooldown   = max(0.0, self._cover_cooldown   - dt)
         if self._stun_timer > 0:
             self._stun_timer    -= dt
             self._knockback_vel *= max(0.0, 1.0 - self.KNOCKBACK_FRICTION * dt)

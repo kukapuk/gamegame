@@ -39,11 +39,11 @@
 26,0,38,35,35,35,35,35,35,35,38,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
 26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
 26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
-26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
-26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
-26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
-26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
-26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
+26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,38,35,37,0,0,0,0,0,0,0,0,0,0,0,26,
+26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,14,14,0,0,0,0,0,14,14,14,14,0,26,
+26,0,0,0,0,0,0,0,0,0,0,14,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
+26,0,0,0,0,0,0,0,0,0,0,14,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
+26,0,0,0,0,0,0,0,0,0,0,14,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
 26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
 26,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,26,
 34,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,35,46
@@ -118,7 +118,7 @@
    <properties>
     <property name="armor_class" type="int" value="2"/>
     <property name="bullet_armor_pen" type="int" value="2"/>
-    <property name="faction" value="BANDIT"/>
+    <property name="faction" value="MILITARY"/>
     <property name="helmet_class" type="int" value="3"/>
     <property name="patrol_group" value="squad_alpha"/>
    </properties>
@@ -143,7 +143,7 @@
    <properties>
     <property name="armor_class" type="int" value="2"/>
     <property name="bullet_armor_pen" type="int" value="2"/>
-    <property name="faction" value="BANDIT"/>
+    <property name="faction" value="MILITARY"/>
     <property name="helmet_class" type="int" value="3"/>
     <property name="patrol_group" value="squad_alpha"/>
    </properties>
@@ -152,7 +152,7 @@
    <properties>
     <property name="armor_class" type="int" value="2"/>
     <property name="bullet_armor_pen" type="int" value="2"/>
-    <property name="faction" value="BANDIT"/>
+    <property name="faction" value="MILITARY"/>
     <property name="helmet_class" type="int" value="3"/>
     <property name="patrol_group" value="squad_alpha"/>
    </properties>
