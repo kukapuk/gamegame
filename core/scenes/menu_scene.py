@@ -83,4 +83,4 @@ class MenuScene:
             lbl = self._font_btn.render(btn["label"], True, self.BTN_TEXT)
             self.screen.blit(lbl, lbl.get_rect(center=btn["rect"].center))
 
-        pygame.display.flip()
+        # display.flip() — handled by GLRenderer in app.py

@@ -207,7 +207,7 @@ class GameScene:
             if not was_reloading and self.weapon.reloading:
                 wi = self.weapon._weapon_item
                 # радиус звука: глушитель — тише, обычное — 90px (слышно только рядом)
-                radius = 90.0 if (wi and wi.stats.suppressed) else 180.0
+                radius = 45.0 if (wi and wi.stats.suppressed) else 90.0
                 self.audio.play_at("reload", self.player.pos, radius,
                                    color=(100, 180, 255))
                 for enemy in self.enemies:
@@ -288,7 +288,7 @@ class GameScene:
             pg.update(dt)
 
         self.vision.set_player_flashlight(self.player.pos, self.weapon.aim_dir)
-        self.vision.update(dt)
+        self.vision.update(dt, cam_offset=self.camera.get_offset())
 
         self._propagate_sound_events()
         self._propagate_footsteps()

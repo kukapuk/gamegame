@@ -107,7 +107,7 @@ class Renderer:
         fps_surf = self._font_save_hint.render(
             f"{self.clock.get_fps():.0f} fps", True, (120, 120, 120))
         screen.blit(fps_surf, (self.s.screen_width - fps_surf.get_width() - 8, 8))
-        pygame.display.flip()
+        # display.flip() — handled by GLRenderer in app.py
 
     # ------------------------------------------------------------------ #
     # Private helpers
