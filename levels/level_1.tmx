@@ -101,16 +101,16 @@
     <property name="item_id" value="cleaning_kit"/>
    </properties>
   </object>
-  <object id="16" name="sniper backpack ammo" type="item_spawn" x="526.6" y="1234.79" width="50.8441" height="43.5806">
+  <object id="16" name="pistol backpack ammo" type="item_spawn" x="526.6" y="1234.79" width="50.8441" height="43.5806">
    <properties>
-    <property name="count" type="int" value="10"/>
-    <property name="item_id" value="ammo_sniper"/>
+    <property name="count" type="int" value="30"/>
+    <property name="item_id" value="ammo_pistol"/>
     <property name="slot" value="backpack"/>
    </properties>
   </object>
-  <object id="17" name="sniper" type="item_spawn" x="976.933" y="1147.62" width="54.4758" height="47.2124">
+  <object id="17" name="suppressed_pistol" type="item_spawn" x="976.933" y="1147.62" width="54.4758" height="47.2124">
    <properties>
-    <property name="item_id" value="sniper"/>
+    <property name="item_id" value="suppressed_pistol"/>
    </properties>
   </object>
   <object id="18" x="174.323" y="987.828"/>

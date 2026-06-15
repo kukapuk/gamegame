@@ -41,10 +41,19 @@ class CombatManager:
     def _check_bullet_hits(self, player, enemies, bullets) -> None:
         active    = player.get_active_weapon()
         armor_pen = active.stats.armor_pen if active else 0
+        suppressed      = active.stats.suppressed       if active else False
+        insta_kill      = active.stats.insta_kill_unaware if active else False
 
         hits = pygame.sprite.groupcollide(enemies, bullets, False, True)
         for enemy, bullet_list in hits.items():
             for bullet in bullet_list:
+
+                # ── Стелс ваншот ─────────────────────────────────────
+                if insta_kill and self._is_unaware(enemy):
+                    enemy.last_hit_zone = HitZone.TORSO
+                    enemy.take_damage(enemy.hp)
+                    continue
+
                 hit_head = enemy.head_rect.colliderect(bullet.rect)
                 result   = resolve_hit(
                     base_damage     = bullet.damage,
@@ -83,6 +92,12 @@ class CombatManager:
                 enemy.take_hit_from_direction(bullet.velocity)
                 if result.stopping_effect > 0 and bullet.velocity.length() > 0:
                     enemy.apply_stopping_effect(bullet.velocity, result.stopping_effect)
+
+    @staticmethod
+    def _is_unaware(enemy) -> bool:
+        """Враг не в агре — IDLE или ALERT (заметил что-то, но не видит игрока)."""
+        from actors.enemy import EnemyState
+        return enemy.state in (EnemyState.IDLE, EnemyState.ALERT)
 
     def _check_bullet_wall_hits(self, bullets, enemy_bullets, walls) -> None:
         pygame.sprite.groupcollide(enemy_bullets, walls, True, False)

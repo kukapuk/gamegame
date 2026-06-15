@@ -47,6 +47,11 @@ class WeaponStats:
     flash_radius:   float = 55.0
     flash_duration: float = 0.07
 
+    # стелс
+    suppressed:              bool  = False
+    insta_kill_unaware:      bool  = False
+    suppressed_sound_radius: float = 40.0
+
 
 # Пороги cleanliness
 CLEAN_THRESHOLD  = 0.75   # выше — всё нормально
@@ -228,5 +233,45 @@ def make_sniper() -> WeaponItem:
             flash_color=(200, 230, 255),   # холодная белая вспышка
             flash_radius=65.0,
             flash_duration=0.05,
+        ),
+    )
+
+
+def make_suppressed_pistol() -> WeaponItem:
+    """Пистолет с глушителем — тихий, ваншот врагов не в агре."""
+    return WeaponItem(
+        name="Suppressed Pistol",
+        icon_color=(80, 80, 90),
+        stats=WeaponStats(
+            damage=30,
+            fire_rate=0.4,
+            bullet_speed=340.0,
+            bullet_lifetime=1.2,
+            armor_pen=1,
+            stopping_effect=0.1,
+            auto_fire=False,
+            spread=1.5,
+            pellets=1,
+            width=20,
+            height=8,
+            color=(60, 60, 70),
+            bullet_size=4,
+            bullet_color=(180, 220, 180),
+            ammo_type=AmmoType.PISTOL,
+            mag_size=10,
+            reload_time=1.8,
+            sound_radius=400.0,
+            aim_radius=140.0,
+            dirt_per_shot=0.006,
+            first_shot_spread=1.0,
+            jam_chance_low=0.02,
+            jam_chance_high=0.06,
+            grid_size=(2, 1),
+            flash_color=(180, 220, 180),
+            flash_radius=25.0,
+            flash_duration=0.04,
+            suppressed=True,
+            insta_kill_unaware=True,
+            suppressed_sound_radius=40.0,
         ),
     )

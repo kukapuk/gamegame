@@ -287,11 +287,10 @@ class GameScene:
                         radius   = s.flash_radius,
                         duration = s.flash_duration,
                     )
+                    radius = s.suppressed_sound_radius if s.suppressed else s.sound_radius
                 else:
                     self.vision.trigger_muzzle_flash()
-                radius = (self.weapon._weapon_item.stats.sound_radius
-                          if self.weapon.has_weapon
-                          else self.settings.gunshot_sound_radius)
+                    radius = self.settings.gunshot_sound_radius
                 self.audio.play_at("gunshot", self.player.pos, radius)
 
         self.combat.update(

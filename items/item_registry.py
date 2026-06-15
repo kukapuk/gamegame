@@ -24,6 +24,7 @@ REGISTRY: dict = {
     "helmet_1":        lambda: make_light_helmet(),
     "helmet_2":        lambda: make_medium_helmet(),
     "helmet_3":        lambda: make_heavy_helmet(),
+    "ammo_pistol":     lambda count=1: make_ammo(AmmoType.PISTOL,  count),
     "ammo_carbine":    lambda count=1: make_ammo(AmmoType.CARBINE, count),
     "ammo_shotgun":    lambda count=1: make_ammo(AmmoType.SHOTGUN, count),
     "ammo_sniper":     lambda count=1: make_ammo(AmmoType.SNIPER,  count),
@@ -34,10 +35,11 @@ WEAPON_REGISTRY: dict = {}
 
 
 def register_weapons() -> None:
-    from items.weapon_item import make_carbine, make_shotgun, make_sniper
-    WEAPON_REGISTRY["carbine"] = make_carbine
-    WEAPON_REGISTRY["shotgun"] = make_shotgun
-    WEAPON_REGISTRY["sniper"]  = make_sniper
+    from items.weapon_item import make_carbine, make_shotgun, make_sniper, make_suppressed_pistol
+    WEAPON_REGISTRY["carbine"]            = make_carbine
+    WEAPON_REGISTRY["shotgun"]            = make_shotgun
+    WEAPON_REGISTRY["sniper"]             = make_sniper
+    WEAPON_REGISTRY["suppressed_pistol"]  = make_suppressed_pistol
 
 
 def serialize_item(item) -> dict | None:

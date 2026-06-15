@@ -3,24 +3,28 @@ from items.item import Item, ItemType
 
 
 class AmmoType(Enum):
+    PISTOL  = auto()
     CARBINE = auto()
     SHOTGUN = auto()
     SNIPER  = auto()
 
 
 AMMO_NAMES = {
+    AmmoType.PISTOL:  "9mm Ammo",
     AmmoType.CARBINE: "5.56 Ammo",
     AmmoType.SHOTGUN: "12ga Shells",
     AmmoType.SNIPER:  ".338 Rounds",
 }
 
 AMMO_COLORS = {
+    AmmoType.PISTOL:  (220, 200, 100),
     AmmoType.CARBINE: (180, 200, 100),
     AmmoType.SHOTGUN: (200, 150, 80),
     AmmoType.SNIPER:  (120, 160, 220),
 }
 
 AMMO_MAX_STACK = {
+    AmmoType.PISTOL:  120,
     AmmoType.CARBINE: 90,
     AmmoType.SHOTGUN: 48,
     AmmoType.SNIPER:  20,
