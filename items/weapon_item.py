@@ -23,7 +23,9 @@ class WeaponStats:
     ammo_type: AmmoType
     mag_size: int
     reload_time: float
-    sound_radius: float    = 400.0
+    sound_radius: float        = 400.0
+    reload_sound_radius: float = 80.0   # тихий щелчок — слышно только вблизи
+    screen_shake:       float  = 2.5    # амплитуда тряски камеры при выстреле
     recoil_distance: float = 6.0
     recoil_recovery: float = 12.0
     aim_radius: float      = 160.0
@@ -156,6 +158,7 @@ def make_carbine() -> WeaponItem:
             flash_color=(255, 160, 40),
             flash_radius=45.0,
             flash_duration=0.06,
+            screen_shake=2.0,
         ),
     )
 
@@ -193,6 +196,7 @@ def make_shotgun() -> WeaponItem:
             flash_color=(255, 80, 20),   # ярко-красная большая вспышка
             flash_radius=90.0,
             flash_duration=0.10,
+            screen_shake=5.5,
         ),
     )
 
@@ -233,6 +237,7 @@ def make_sniper() -> WeaponItem:
             flash_color=(200, 230, 255),   # холодная белая вспышка
             flash_radius=65.0,
             flash_duration=0.05,
+            screen_shake=7.0,
         ),
     )
 
@@ -273,5 +278,6 @@ def make_suppressed_pistol() -> WeaponItem:
             suppressed=True,
             insta_kill_unaware=True,
             suppressed_sound_radius=40.0,
+            screen_shake=0.5,
         ),
     )

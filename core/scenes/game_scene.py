@@ -287,6 +287,7 @@ class GameScene:
         for pg in self._patrol_groups:
             pg.update(dt)
 
+        self.camera.update(dt)
         self.vision.set_player_flashlight(self.player.pos, self.weapon.aim_dir)
         self.vision.update(dt, cam_offset=self.camera.get_offset())
 
@@ -303,9 +304,13 @@ class GameScene:
                         duration = s.flash_duration,
                     )
                     radius = s.suppressed_sound_radius if s.suppressed else s.sound_radius
+                    # shake — зависит от калибра/типа оружия
+                    shake = getattr(s, "screen_shake", 2.5)
+                    self.camera.shake(shake, duration=0.07)
                 else:
                     self.vision.trigger_muzzle_flash()
                     radius = self.settings.gunshot_sound_radius
+                    self.camera.shake(2.5, duration=0.07)
                 self.audio.play_at("gunshot", self.player.pos, radius)
 
         self.combat.update(

@@ -64,9 +64,14 @@ class App:
             cmd = self._menu.update(dt)
             if cmd == "start_game":
                 self._game  = GameScene(self.settings, self.screen, self.clock)
-                # подключаем GLRenderer к VisionSystem
+                # подключаем GLRenderer к VisionSystem и игроку
                 self._game.vision.set_gl(self.gl)
                 self._game.vision.load_level(self._game.world.level)
+                self._game.player._gl_renderer = self.gl
+                # heat haze если есть источники света на уровне
+                lights = getattr(self._game.world.level, "lights", [])
+                if lights:
+                    self.gl.set_haze(0.8)
                 self._state = "game"
             elif cmd == "quit":
                 return "quit"

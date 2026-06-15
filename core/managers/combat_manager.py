@@ -61,7 +61,11 @@ class CombatManager:
                 base_rel = faction_mgr.get_relation(enemy_faction, player_faction)
                 if base_rel == Relation.NEUTRAL:
                     faction_mgr.provoke(id(enemy), player_faction)
-                    enemy.state = enemy.state  # не меняем state, просто запоминаем
+                    from actors.enemy import EnemyState
+                    enemy._provoked_hostile = True
+                    enemy._last_known_pos = pygame.math.Vector2(player.pos)
+                    enemy.state = EnemyState.CHASE
+                    enemy._path = []
 
                 hit_head = enemy.head_rect.colliderect(bullet.rect)
                 result   = resolve_hit(
@@ -169,13 +173,17 @@ class CombatManager:
                         settings        = self.s,
                     )
                     if head_result.penetrated:
-                        # пробит — большой урон но не смертельный
                         player.take_damage(min(head_result.damage * 1.5, player.hp - 1))
+                        if hasattr(player, "_gl_renderer") and player._gl_renderer:
+                            player._gl_renderer.trigger_hit(1.0)
                     else:
-                        # не пробит — урон снижен
                         player.take_damage(head_result.damage)
+                        if hasattr(player, "_gl_renderer") and player._gl_renderer:
+                            player._gl_renderer.trigger_hit(0.5)
             else:
                 player.take_damage(result.damage)
+                if hasattr(player, "_gl_renderer") and player._gl_renderer:
+                    player._gl_renderer.trigger_hit(0.7)
 
                 if result.penetrated:
                     if result.zone == HitZone.ARMS:
