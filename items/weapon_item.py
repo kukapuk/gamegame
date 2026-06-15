@@ -243,7 +243,7 @@ def make_suppressed_pistol() -> WeaponItem:
         name="Suppressed Pistol",
         icon_color=(80, 80, 90),
         stats=WeaponStats(
-            damage=30,
+            damage=5,
             fire_rate=0.4,
             bullet_speed=340.0,
             bullet_lifetime=1.2,
