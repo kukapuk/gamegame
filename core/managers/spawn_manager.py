@@ -61,7 +61,7 @@ class SpawnManager:
     # Enemies
 
     def _spawn_grunt(self, pos, props, player, pathfinder) -> None:
-        from actors.enemy import make_grunt
+        from actors.enemy_factory import make_grunt
         e = make_grunt(
             pos=pos,
             target=player,
@@ -76,7 +76,7 @@ class SpawnManager:
             e.set_patrol(patrol)
 
     def _spawn_shooter(self, pos, props, player, pathfinder, bullets) -> None:
-        from actors.enemy import make_shooter
+        from actors.enemy_factory import make_shooter
         e = make_shooter(
             pos=pos,
             target=player,

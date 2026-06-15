@@ -5,7 +5,7 @@ from core.settings import Settings
 from combat.bullet import Bullet
 from items.weapon_item import WeaponItem, DIRTY_THRESHOLD, FILTHY_THRESHOLD
 from items.ammo import AmmoItem
-from actors.actor import Casing, Magazine
+from actors.effects import Casing, Magazine
 
 UNJAM_TIME = 0.5   # секунд на передёргивание затвора
 

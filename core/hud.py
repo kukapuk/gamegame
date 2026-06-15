@@ -6,6 +6,7 @@ from actors.player import Player
 from items.item import ItemType
 from items.inventory import Slot, Inventory
 from core.ui.grid_backpack_ui import GridBackpackUI
+import core.ui.hud_bars as hud_bars
 
 
 @dataclass
@@ -281,122 +282,19 @@ class HUD:
             yield slot, pygame.Rect(ox + i * (ss + pad), oy, ss, ss)
 
     def _draw_ammo_counter(self, screen: pygame.Surface, weapon) -> None:
-        ox      = self.MARGIN + self.s.player_hp_bar_width + 12
-        ss      = self.SMALL_SLOT
-        pad     = self.SLOT_PAD
-        slots_w = len(list(self.player.pouch.slots)) * (ss + pad)
-        x       = ox + slots_w + 12
-        y       = self._bar_baseline() - ss
-
-        if weapon.jammed:
-            lbl = self.font_md.render("JAMMED", True, (220, 60, 60))
-            screen.blit(lbl, (x, y))
-            hint = self.font_sm.render("[R] reload  [T] unjam", True, (160, 80, 80))
-            screen.blit(hint, (x, y + lbl.get_height() + 2))
-            return
-
-        if weapon.unjamming:
-            progress = 1.0 - weapon._unjam_timer / 0.5
-            bw, bh   = 90, 5
-            lbl = self.font_md.render("CYCLING...", True, (200, 120, 60))
-            screen.blit(lbl, (x, y))
-            pygame.draw.rect(screen, (40, 40, 60),   (x, y + lbl.get_height() + 4, bw, bh))
-            pygame.draw.rect(screen, (200, 100, 40), (x, y + lbl.get_height() + 4, int(bw * progress), bh))
-            return
-
-        if weapon.reloading:
-            progress = 1.0 - weapon._reload_timer / weapon._weapon_item.stats.reload_time
-            bw, bh   = 90, 5
-            lbl = self.font_md.render("RELOADING", True, (220, 180, 60))
-            screen.blit(lbl, (x, y))
-            pygame.draw.rect(screen, (40, 40, 60),   (x, y + lbl.get_height() + 4, bw, bh))
-            pygame.draw.rect(screen, (180, 140, 40), (x, y + lbl.get_height() + 4, int(bw * progress), bh))
-        else:
-            text  = f"{weapon.mag_current} / {weapon.mag_size}"
-            color = (220, 220, 220) if weapon.mag_current > 0 else (220, 60, 60)
-            lbl   = self.font_md.render(text, True, color)
-            screen.blit(lbl, (x, y + (ss - lbl.get_height()) // 2))
-
-        # полоска чистоты оружия
-        wi = weapon._weapon_item
-        if wi:
-            bw, bh = 90, 3
-            by2    = y + ss - bh - 2
-            clean  = wi.cleanliness
-            if clean >= 0.75:
-                bar_color = (80, 180, 80)
-            elif clean >= 0.5:
-                bar_color = (200, 180, 40)
-            elif clean >= 0.25:
-                bar_color = (220, 120, 40)
-            else:
-                bar_color = (200, 50, 50)
-            pygame.draw.rect(screen, (30, 30, 50),  (x, by2, bw, bh))
-            pygame.draw.rect(screen, bar_color,     (x, by2, int(bw * clean), bh))
+        hud_bars.draw_ammo_counter(self, screen, weapon)
 
     def _draw_i_progress(self, screen: pygame.Surface, progress: float) -> None:
-        bw, bh = 120, 6
-        cx     = self.s.screen_width // 2
-        by     = self.s.screen_height - self.MARGIN - bh - 60
-        bx     = cx - bw // 2
-        pygame.draw.rect(screen, (30, 30, 50),    (bx, by, bw, bh))
-        fill = int(bw * min(progress, 1.0))
-        if fill > 0:
-            pygame.draw.rect(screen, (120, 160, 220), (bx, by, fill, bh))
-        pygame.draw.rect(screen, (60, 65, 90),    (bx, by, bw, bh), 1)
-        label = "Opening..." if not self.backpack_open else "Closing..."
-        lbl   = self.font_sm.render(label, True, (140, 150, 180))
-        screen.blit(lbl, (cx - lbl.get_width() // 2, by - 16))
+        hud_bars.draw_i_progress(self, screen, progress)
 
     def _draw_use_progress(self, screen: pygame.Surface, player) -> None:
-        if player.use_time_total <= 0:
-            return
-        progress = min(player.use_timer / player.use_time_total, 1.0)
-        item     = player._using_item
-
-        bw, bh = 160, 8
-        cx     = self.s.screen_width // 2
-        by     = self.s.screen_height - self.MARGIN - bh - 44
-        bx     = cx - bw // 2
-
-        bar_colors = {
-            "Bandage":      (220, 180, 120),
-            "Medkit":       (80,  200, 100),
-            "Surgical Kit": (100, 180, 220),
-        }
-        bar_color = bar_colors.get(item.name, (180, 180, 220))
-
-        pygame.draw.rect(screen, (20, 20, 35),  (bx - 1, by - 1, bw + 2, bh + 2))
-        pygame.draw.rect(screen, (30, 30, 50),  (bx, by, bw, bh))
-        fill = int(bw * progress)
-        if fill > 0:
-            pygame.draw.rect(screen, bar_color, (bx, by, fill, bh))
-        pygame.draw.rect(screen, (80, 85, 110), (bx, by, bw, bh), 1)
-
-        lbl = self.font_sm.render(f"Using {item.name}...", True, bar_color)
-        screen.blit(lbl, (cx - lbl.get_width() // 2, by - 15))
+        hud_bars.draw_use_progress(self, screen, player)
 
     def _draw_hp_bar(self, screen: pygame.Surface) -> None:
-        s       = self.s
-        bw, bh  = s.player_hp_bar_width, s.player_hp_bar_height
-        bx, by  = self.MARGIN, self._bar_baseline() - bh
-        pygame.draw.rect(screen, s.player_hp_bar_bg,    (bx, by, bw, bh))
-        fill = int(bw * self.player.hp / self.player.max_hp)
-        if fill > 0:
-            pygame.draw.rect(screen, s.player_hp_bar_color, (bx, by, fill, bh))
-        pygame.draw.rect(screen, (80, 80, 80), (bx, by, bw, bh), 1)
+        hud_bars.draw_hp_bar(self, screen)
 
     def _draw_stamina_bar(self, screen: pygame.Surface) -> None:
-        s   = self.s
-        bw  = s.player_hp_bar_width
-        bh  = 5
-        bx  = self.MARGIN
-        by  = self._bar_baseline() - s.player_hp_bar_height - 3 - bh
-        pygame.draw.rect(screen, (30, 30, 50),  (bx, by, bw, bh))
-        fill = int(bw * self.player.stamina / self.player.stats.max_stamina)
-        if fill > 0:
-            pygame.draw.rect(screen, (80, 140, 220), (bx, by, fill, bh))
-        pygame.draw.rect(screen, (60, 60, 90),  (bx, by, bw, bh), 1)
+        hud_bars.draw_stamina_bar(self, screen)
 
     def _draw_quick_slots(self, screen: pygame.Surface) -> None:
         ss = self.SMALL_SLOT
