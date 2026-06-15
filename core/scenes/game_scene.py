@@ -103,6 +103,17 @@ class GameScene:
         for enemy in self.enemies:
             enemy._blood_group = self.blood_drops
             enemy._popup_group = self.popups
+            # звук выстрела/перезарядки врага → слышат другие враги и игрок
+            enemy._sound_callback = self._enemy_sound
+            if enemy.enemy_weapon:
+                enemy.enemy_weapon.on_sound = self._enemy_sound
+
+    def _enemy_sound(self, pos, radius: float) -> None:
+        """Звук от врага — распространяется другим врагам."""
+        import pygame
+        sound_pos = pygame.math.Vector2(pos) if not hasattr(pos, 'x') else pos
+        for other in self.enemies:
+            other.hear_sound(sound_pos, radius)
 
     def update(self, dt: float) -> str:
         """

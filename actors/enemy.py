@@ -91,6 +91,10 @@ class Enemy(Actor):
         self._bullet_armor_pen:  int   = 0
         self._bullet_color:      tuple = (255, 200, 50)
 
+        # новое оружие с магазином/перезарядкой/режимами (None = legacy режим)
+        self.enemy_weapon              = None   # EnemyWeapon | None
+        self._sound_callback           = None   # (pos, radius) → None
+
         self.weapon_image: pygame.Surface = None
         self.weapon_rect:  pygame.Rect    = None
         self._weapon_w:    int   = 0
@@ -299,10 +303,18 @@ class Enemy(Actor):
                 perp = pygame.math.Vector2(-delta.normalize().y, delta.normalize().x)
                 self.velocity = perp * self.speed * 0.6
 
-        self._shoot_cooldown = max(0.0, self._shoot_cooldown - dt)
-        if self._shoot_cooldown <= 0 and dist < self._preferred_dist + 120:
-            self._fire()
-            self._shoot_cooldown = self._shoot_rate
+        if self.enemy_weapon:
+            # новый путь — через EnemyWeapon
+            self.enemy_weapon.update(dt, self.pos)
+            if dist < self._preferred_dist + 120:
+                direction = delta.normalize() if dist > 0 else pygame.math.Vector2(1, 0)
+                self.enemy_weapon.try_fire(self.pos, direction)
+        else:
+            # legacy путь
+            self._shoot_cooldown = max(0.0, self._shoot_cooldown - dt)
+            if self._shoot_cooldown <= 0 and dist < self._preferred_dist + 120:
+                self._fire()
+                self._shoot_cooldown = self._shoot_rate
 
     def _do_patrol(self, dt: float) -> None:
         if not self._patrol_points:
@@ -338,6 +350,7 @@ class Enemy(Actor):
     # ── Combat ────────────────────────────────────────────────────────
 
     def _fire(self) -> None:
+        """Legacy вызов — используется когда нет enemy_weapon."""
         if self._bullet_group is None:
             return
         delta = self.target.pos - self.pos
@@ -345,21 +358,35 @@ class Enemy(Actor):
             return
         self._spawn_bullet(delta.normalize())
 
-    def _spawn_bullet(self, direction: pygame.math.Vector2) -> None:
+    def _fire_bullet(self, pos, direction) -> None:
+        """Callback для EnemyWeapon.on_fire."""
+        self._spawn_bullet(direction, pos=pos,
+                           speed=self.enemy_weapon.stats.bullet_speed,
+                           damage=self.enemy_weapon.stats.damage,
+                           armor_pen=self.enemy_weapon.stats.armor_pen,
+                           color=self.enemy_weapon.stats.bullet_color)
+
+    def _spawn_bullet(self, direction, pos=None, speed=None,
+                      damage=None, armor_pen=None, color=None) -> None:
         from combat.bullet import Bullet
         groups = [self._bullet_group]
         if self._all_sprites:
             groups.append(self._all_sprites)
+        p      = pos    or self.pos
+        sp     = speed  or self._bullet_speed
+        dmg    = damage or self._bullet_damage
+        ap     = armor_pen if armor_pen is not None else self._bullet_armor_pen
+        col    = color  or self._bullet_color
         Bullet(
-            pos=(self.pos.x, self.pos.y),
+            pos=(p.x, p.y),
             direction=direction,
-            speed=self._bullet_speed,
+            speed=sp,
             lifetime=3.0,
-            damage=self._bullet_damage,
+            damage=dmg,
             size=6,
-            color=self._bullet_color,
+            color=col,
             stopping_effect=0.0,
-            armor_pen=self._bullet_armor_pen,
+            armor_pen=ap,
             groups=groups,
         )
 

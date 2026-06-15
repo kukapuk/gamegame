@@ -53,6 +53,14 @@ class SpawnManager:
                 self._spawn_grunt(pos, props, player, pathfinder)
             elif t == "enemy_shooter":
                 self._spawn_shooter(pos, props, player, pathfinder, bullets)
+            elif t == "enemy_smg":
+                self._spawn_enemy_typed(pos, props, player, pathfinder, "smg")
+            elif t == "enemy_rifle":
+                self._spawn_enemy_typed(pos, props, player, pathfinder, "rifle")
+            elif t == "enemy_shotgun":
+                self._spawn_enemy_typed(pos, props, player, pathfinder, "shotgun")
+            elif t == "enemy_sniper":
+                self._spawn_enemy_typed(pos, props, player, pathfinder, "sniper")
             elif t == "npc":
                 self._spawn_npc(pos, props)
             elif t == "item_spawn":
@@ -89,6 +97,31 @@ class SpawnManager:
         e.enemies_group    = self.enemies
         e.helmet_class     = props.get("helmet_class", 0)
         e._bullet_armor_pen = props.get("bullet_armor_pen", 0)
+
+    def _spawn_enemy_typed(self, pos, props, player, pathfinder, weapon_type: str) -> None:
+        from actors.enemy_factory import (
+            make_smg_shooter, make_rifle_shooter,
+            make_shotgun_shooter, make_sniper,
+        )
+        factory = {
+            "smg":     make_smg_shooter,
+            "rifle":   make_rifle_shooter,
+            "shotgun": make_shotgun_shooter,
+            "sniper":  make_sniper,
+        }[weapon_type]
+        e = factory(
+            pos=pos, target=player,
+            armor_class=props.get("armor_class", 0),
+            groups=[self.all_sprites, self.enemies],
+            bullet_group=self.enemy_bullets,
+            all_sprites=self.all_sprites,
+            helmet_class=props.get("helmet_class", 0),
+        )
+        e.pathfinder    = pathfinder
+        e.enemies_group = self.enemies
+        patrol = self._parse_patrol(props)
+        if patrol:
+            e.set_patrol(patrol)
 
     def _parse_patrol(self, props: dict) -> list:
         points = []
