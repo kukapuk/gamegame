@@ -72,8 +72,10 @@ class Renderer:
             vision_system.render_floor_layer(screen, offset, debug=debug)
 
         self._draw_sprites(screen, camera, level, world_items, npcs, enemies,
-                           enemy_bullets, bullets, player, weapon)
-        self._draw_enemy_hp_bars(screen, camera, enemies)
+                           enemy_bullets, bullets, player, weapon,
+                           vision_system=vision_system, debug=debug)
+        self._draw_enemy_hp_bars(screen, camera, enemies,
+                                   vision_system=vision_system, debug=debug)
 
         # FOV sprite layer — поверх спрайтов (силуэты видны)
         if vision_system is not None:
@@ -114,29 +116,58 @@ class Renderer:
     def _draw_sprites(
         self, screen, camera, level,
         world_items, npcs, enemies, enemy_bullets, bullets, player, weapon,
+        vision_system=None, debug=False,
     ) -> None:
+        vs = vision_system if (vision_system and not debug) else None
+
         for sprite in level.walls:
             screen.blit(sprite.image, camera.apply(sprite.rect))
+
+        # предметы на земле — скрыть если не видно
         for sprite in world_items:
+            if vs and not vs.is_visible(sprite.rect.center):
+                continue
             screen.blit(sprite.image, camera.apply(sprite.rect))
+
+        # NPC — скрыть если не видно
         for npc in npcs:
+            if vs and not vs.is_visible(npc.rect.center):
+                continue
             screen.blit(npc.image, camera.apply(npc.rect))
             npc.draw_name(screen, camera.get_offset())
-        for sprite in [*enemy_bullets.sprites(), *bullets.sprites(),
-                       *enemies.sprites(), player]:
+
+        # пули всегда видны (они в воздухе, их видно)
+        for sprite in [*enemy_bullets.sprites(), *bullets.sprites()]:
             screen.blit(sprite.image, camera.apply(sprite.rect))
-        # оружие врагов
+
+        # враги — скрыть если не видно
+        for sprite in enemies.sprites():
+            if vs and not vs.is_visible(sprite.rect.center):
+                continue
+            screen.blit(sprite.image, camera.apply(sprite.rect))
+
+        # игрок всегда
+        screen.blit(player.image, camera.apply(player.rect))
+
+        # оружие врагов — вместе с врагом
         for enemy in enemies:
+            if vs and not vs.is_visible(enemy.rect.center):
+                continue
             if enemy.weapon_image is not None and enemy.weapon_rect is not None:
                 screen.blit(enemy.weapon_image, camera.apply(enemy.weapon_rect))
+
         if weapon.has_weapon:
             screen.blit(weapon.image, camera.apply(weapon.rect))
 
     def _draw_enemy_hp_bars(
         self, screen: pygame.Surface, camera, enemies: pygame.sprite.Group,
+        vision_system=None, debug=False,
     ) -> None:
+        vs = vision_system if (vision_system and not debug) else None
         s = self.s
         for enemy in enemies:
+            if vs and not vs.is_visible(enemy.rect.center):
+                continue
             bar_rect = camera.apply(enemy.rect)
             bx = bar_rect.centerx - s.enemy_hp_bar_width // 2
             by = bar_rect.top - 8

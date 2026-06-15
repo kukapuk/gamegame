@@ -231,6 +231,35 @@ class VisionSystem:
         self._player_pos = pygame.math.Vector2(pos)
         self._player_dir = math.atan2(aim_dir.y, aim_dir.x)
 
+    def is_visible(self, world_pos) -> bool:
+        """
+        True если точка видна игроку — попадает в конус фонарика,
+        в ambient-радиус или в радиус любого статичного источника света.
+        Стены не учитываются (дорого) — используем только угол и дистанцию.
+        """
+        wp = pygame.math.Vector2(world_pos)
+
+        # ambient вокруг игрока — всегда видно рядом
+        dist = (wp - self._player_pos).length()
+        if dist <= self.AMBIENT_R + 8:
+            return True
+
+        # конус фонарика
+        if self.flashlight_on and dist <= self.FLASHLIGHT_R:
+            delta = wp - self._player_pos
+            if delta.length() > 0:
+                angle_to = math.atan2(delta.y, delta.x)
+                diff = self._angle_diff(angle_to, self._player_dir)
+                if abs(diff) <= math.radians(self.FLASHLIGHT_FOV / 2) + 0.05:
+                    return True
+
+        # статичные источники света
+        for src in self._static:
+            if (wp - src.pos).length() <= src.radius * 0.75:
+                return True
+
+        return False
+
     def toggle_flashlight(self) -> None:
         self.flashlight_on = not self.flashlight_on
         self._dirty = True
