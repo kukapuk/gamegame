@@ -33,6 +33,8 @@ class Actor(pygame.sprite.Sprite):
         self.image.fill(color)
         self.rect = self.image.get_rect(center=pos)
 
+
+
         self.pos      = pygame.math.Vector2(pos)
         self.velocity = pygame.math.Vector2(0, 0)
         self.facing   = pygame.math.Vector2(0, 1)
@@ -112,6 +114,8 @@ class Actor(pygame.sprite.Sprite):
             self.pos += self.velocity * dt
             self.rect.center = (round(self.pos.x), round(self.pos.y))
         self._update_hitboxes()
+
+
 
     def _move_with_collisions(self, dt: float, walls: pygame.sprite.Group) -> None:
         self.pos.x += self.velocity.x * dt

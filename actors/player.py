@@ -36,6 +36,17 @@ class Player(Actor):
         self.settings = settings
         self.surface_map: dict = {}
         self.faction  = Faction.PLAYER
+
+        # загружаем спрайт
+        import os
+        _path = os.path.join(os.path.dirname(__file__),
+                             '..', 'assets', 'actors', 'player.png')
+        if os.path.exists(_path):
+            raw = pygame.image.load(_path).convert_alpha()
+            sz  = settings.player_size
+            self.image = pygame.transform.smoothscale(raw, (sz, sz))
+            self.rect  = self.image.get_rect(center=pos)
+
         self.stats    = Stats()
         self.speed    = self.stats.speed
 
