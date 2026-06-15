@@ -49,12 +49,22 @@ class PatrolGroup:
     def raise_alarm(self, known_pos: pygame.math.Vector2, source=None) -> None:
         """
         Тревога — один член группы заметил игрока.
-        Все остальные немедленно получают CHASE к known_pos.
-        source — враг-инициатор (чтобы не уведомлять его повторно).
+        Назначаем flanker (один), остальные — CHASE.
+        source — враг-инициатор (не уведомляем повторно).
         """
         from actors.enemy import EnemyState
         self._alarmed         = True
         self._cooldown_timer  = self.COOLDOWN_TIME
+
+        # кандидаты — живые, не source, не уже в CHASE/FLANK
+        others = [m for m in self.members
+                  if m.alive and m is not source
+                  and m.state not in (EnemyState.CHASE, EnemyState.FLANK)]
+
+        # flanker — один, дальше всего от source (чтобы зашёл с другой стороны)
+        flanker = None
+        if source and len(others) >= 2:
+            flanker = max(others, key=lambda m: (m.pos - source.pos).length())
 
         for member in self.members:
             if not member.alive:
@@ -62,16 +72,46 @@ class PatrolGroup:
             if member is source:
                 continue
             if member.state == EnemyState.CHASE:
-                # уже в бою — просто обновляем позицию
                 member._last_known_pos = pygame.math.Vector2(known_pos)
                 continue
-            # переводим в CHASE
-            member._last_known_pos   = pygame.math.Vector2(known_pos)
-            member._alert_react_timer = 0.0   # без задержки реакции
-            member.state              = EnemyState.CHASE
-            member._path              = []
+
+            member._last_known_pos    = pygame.math.Vector2(known_pos)
+            member._alert_react_timer = 0.0
+
+            if member is flanker:
+                flank_pos = self._calc_flank_pos(known_pos, source)
+                member._flank_point = flank_pos
+                member._flank_phase = 0
+                member.state        = EnemyState.FLANK
+                member._path        = []
+            else:
+                member.state = EnemyState.CHASE
+                member._path = []
 
     CHECK_DELAY = 10.0   # секунд до отправки проверяющего
+
+    @staticmethod
+    def _calc_flank_pos(
+        target_pos: pygame.math.Vector2,
+        attacker,
+        flank_dist: float = 220.0,
+    ) -> pygame.math.Vector2:
+        """
+        Вычислить фланговую точку — перпендикуляр от линии attacker→target.
+        Чередуем левый/правый фланг случайно.
+        """
+        import math, random
+        if attacker is None:
+            angle = random.uniform(0, math.pi * 2)
+            return target_pos + pygame.math.Vector2(
+                math.cos(angle), math.sin(angle)) * flank_dist
+
+        delta = target_pos - attacker.pos
+        if delta.length() < 1:
+            delta = pygame.math.Vector2(1, 0)
+        perp = pygame.math.Vector2(-delta.y, delta.x).normalize()
+        side = random.choice([-1, 1])
+        return target_pos + perp * side * flank_dist
 
     def notify_member_dead(self, dead_pos: pygame.math.Vector2) -> None:
         """
@@ -166,24 +206,92 @@ class PatrolGroup:
 
     # ── Debug ─────────────────────────────────────────────────────────
 
+    # цвет и метка для каждого состояния
+    _STATE_STYLE = None  # инициализируется лениво
+
+    @staticmethod
+    def _get_state_style():
+        from actors.enemy import EnemyState
+        return {
+            EnemyState.IDLE:     ((120, 120, 120), "idle"),
+            EnemyState.ALERT:    ((180, 120, 220), "alert"),
+            EnemyState.SEARCH:   ((220, 180,  60), "search"),
+            EnemyState.CHASE:    ((220,  80,  80), "chase"),
+            EnemyState.SUPPRESS: ((220,  80, 180), "supr"),
+            EnemyState.COVER:    (( 60, 180, 220), "cover"),
+            EnemyState.PEEK:     ((220, 140,  60), "peek"),
+            EnemyState.FLANK:    (( 80, 220, 180), "flank"),
+            EnemyState.RETREAT:  (( 80, 160, 220), "run"),
+        }
+
     def draw_debug(self, surface: pygame.Surface,
                    camera_offset: pygame.math.Vector2) -> None:
-        """Рисует линии между членами группы и статус."""
         if not self.members:
             return
+
+        from actors.enemy import EnemyState
+        style = self._get_state_style()
         alive = [m for m in self.members if m.alive]
-        color = (255, 80, 80) if self._alarmed else (80, 200, 80)
-        # линии между соседями
+
+        font_small = pygame.font.SysFont("monospace", 10)
+        font_name  = pygame.font.SysFont("monospace", 9)
+
+        group_color = (255, 80, 80) if self._alarmed else (160, 160, 160)
+
+        # линия группы между соседями
         for i in range(len(alive) - 1):
             a = alive[i].pos - camera_offset
             b = alive[i + 1].pos - camera_offset
-            pygame.draw.line(surface, (*color, 120),
+            pygame.draw.line(surface, (*group_color, 80),
                              (round(a.x), round(a.y)),
                              (round(b.x), round(b.y)), 1)
-        # метка группы над первым живым
-        if alive:
-            font = pygame.font.SysFont("monospace", 10)
-            label = font.render(f"[{self.name}]", True, color)
-            p = alive[0].pos - camera_offset
-            surface.blit(label, (round(p.x) - label.get_width() // 2,
-                                 round(p.y) - 40))
+
+        for m in alive:
+            mp = m.pos - camera_offset
+            mx, my = round(mp.x), round(mp.y)
+
+            state_color, state_label = style.get(
+                m.state, ((160, 160, 160), m.state[:4]))
+
+            # кружок-роль над головой
+            pygame.draw.circle(surface, state_color, (mx, my - 22), 6)
+            pygame.draw.circle(surface, (0, 0, 0),   (mx, my - 22), 6, 1)
+
+            # метка состояния
+            lbl = font_small.render(state_label, True, state_color)
+            surface.blit(lbl, (mx - lbl.get_width() // 2, my - 36))
+
+            # имя группы под меткой состояния (мелко, серым)
+            grp = font_name.render(f"[{self.name}]", True, group_color)
+            surface.blit(grp, (mx - grp.get_width() // 2, my - 47))
+
+            # линия к цели действия
+            if m.state == EnemyState.FLANK and m._flank_point:
+                fp = m._flank_point - camera_offset
+                pygame.draw.line(surface, state_color,
+                                 (mx, my), (round(fp.x), round(fp.y)), 1)
+                pygame.draw.circle(surface, state_color,
+                                   (round(fp.x), round(fp.y)), 4, 1)
+
+            elif m.state == EnemyState.COVER and m._cover_point:
+                cp = m._cover_point - camera_offset
+                pygame.draw.line(surface, state_color,
+                                 (mx, my), (round(cp.x), round(cp.y)), 1)
+                pygame.draw.circle(surface, state_color,
+                                   (round(cp.x), round(cp.y)), 4, 1)
+
+            elif m.state == EnemyState.SUPPRESS:
+                lkp = m._last_known_pos - camera_offset
+                # пунктирная линия к точке подавления
+                dx = round(lkp.x) - mx
+                dy = round(lkp.y) - my
+                length = max(1, int((dx**2 + dy**2) ** 0.5))
+                for t in range(0, length, 10):
+                    px = mx + dx * t // length
+                    py = my + dy * t // length
+                    pygame.draw.circle(surface, state_color, (px, py), 1)
+
+            elif m.state == EnemyState.CHASE:
+                tp = m.target.pos - camera_offset
+                pygame.draw.line(surface, (*state_color, 60),
+                                 (mx, my), (round(tp.x), round(tp.y)), 1)

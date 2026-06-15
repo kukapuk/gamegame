@@ -18,6 +18,7 @@ class EnemyState:
     COVER    = "cover"    # движется к укрытию
     PEEK     = "peek"     # выглядывает из укрытия и стреляет
     SUPPRESS = "suppress" # подавляющий огонь без прямой видимости
+    FLANK    = "flank"    # обходной манёвр с фланга
 
 
 DEBUG_COLORS = {
@@ -29,6 +30,7 @@ DEBUG_COLORS = {
     EnemyState.COVER:   (60,  180, 220, 40),
     EnemyState.PEEK:     (220, 140, 60,  40),
     EnemyState.SUPPRESS: (220, 80,  180, 40),
+    EnemyState.FLANK:    (80,  220, 180, 40),
 }
 
 
@@ -41,7 +43,7 @@ class Enemy(Actor):
 
     KNOCKBACK_FRICTION = 8.0
     VISION_ANGLE       = 125.0
-    VISION_RANGE       = 280.0
+    VISION_RANGE       = 560.0
     SEARCH_ROTATE_TIME = 2.5
     ALERT_TIMEOUT      = 10.0
     ALERT_REACT_DELAY  = 0.4
@@ -91,6 +93,8 @@ class Enemy(Actor):
         self._peek_timer:      float   = 0.0    # сколько выглядывает
         self._cover_cooldown:  float   = 0.0    # пауза перед следующим поиском укрытия
         self._suppress_timer:  float   = 0.0    # сколько ещё подавляем
+        self._flank_point              = None   # Vector2 — цель обхода
+        self._flank_phase:     int     = 0       # 0=идём к точке, 1=атакуем
         self.use_cover:        bool    = False   # включить cover AI (военные/элита)
         self._broken:                  bool  = False  # отступил — больше не атакует
         self.enemies_group         = None
@@ -98,7 +102,6 @@ class Enemy(Actor):
         self._separation_radius:   float = 40.0
         self._separation_force:    float = 180.0
 
-        self._provoked_hostile:  bool  = False  # враждебен после провокации безусловно
         self.can_shoot:          bool  = False
         self._shoot_cooldown:    float = 0.0
         self._shoot_rate:        float = 0.0
@@ -210,16 +213,11 @@ class Enemy(Actor):
         if delta.length() > self.vision_range:
             return False
 
-        # Спровоцированный нейтрал знает откуда прилетела пуля —
-        # угол зрения не блокирует (но стены всё ещё блокируют)
-        provoked = (target_faction is not None and
-                    (id(self), target_faction) in faction_mgr._provoked)
-        if not provoked:
-            angle_to_target = math.degrees(math.atan2(delta.y, delta.x))
-            facing_angle    = math.degrees(math.atan2(self.facing.y, self.facing.x))
-            diff = (angle_to_target - facing_angle + 180) % 360 - 180
-            if abs(diff) > self.vision_angle / 2:
-                return False
+        angle_to_target = math.degrees(math.atan2(delta.y, delta.x))
+        facing_angle    = math.degrees(math.atan2(self.facing.y, self.facing.x))
+        diff = (angle_to_target - facing_angle + 180) % 360 - 180
+        if abs(diff) > self.vision_angle / 2:
+            return False
 
         return not self._ray_hits_wall(self.pos, self.target.pos)
 
@@ -283,15 +281,11 @@ class Enemy(Actor):
     def _update_state(self, dt: float) -> None:
         if self.state == EnemyState.RETREAT:
             return   # отход не прерывается — только PatrolGroup сбрасывает
-        if self.state in (EnemyState.COVER, EnemyState.PEEK, EnemyState.SUPPRESS):
-            # cover AI управляет переходами сам
+        if self.state in (EnemyState.COVER, EnemyState.PEEK,
+                            EnemyState.SUPPRESS, EnemyState.FLANK):
+            # cover/flank AI управляет переходами сам
             if self.can_see_target():
                 self._last_known_pos = pygame.math.Vector2(self.target.pos)
-            return
-
-        # сломленный бандит при виде игрока снова убегает
-        if self._broken and self.can_see_target():
-            self._start_retreat()
             return
 
         if self.state == EnemyState.IDLE:
@@ -308,12 +302,10 @@ class Enemy(Actor):
                 # военные/элита — подавляют пока идут в укрытие
                 self._suppress_timer = 2.5
                 self.state           = EnemyState.SUPPRESS
-            elif not self._provoked_hostile:
+            else:
                 self.state = EnemyState.SEARCH
                 self._search_rotate_timer = self.SEARCH_ROTATE_TIME
                 self._path = []
-            else:
-                self._last_known_pos = pygame.math.Vector2(self.target.pos)
 
         elif self.state == EnemyState.SEARCH:
             if self.can_see_target():
@@ -362,6 +354,9 @@ class Enemy(Actor):
         if self.state == EnemyState.SUPPRESS:
             self._do_suppress(dt)
             return
+        if self.state == EnemyState.FLANK:
+            self._do_flank(dt)
+            return
         if self.state == EnemyState.IDLE:
             self._do_patrol(dt)
             return
@@ -376,8 +371,12 @@ class Enemy(Actor):
         delta = self.target.pos - self.pos
         dist  = delta.length()
 
+        # позиция для подхода — на preferred_dist от игрока,
+        # с угловым смещением чтобы враги не кучковались
+        approach_target = self._calc_approach_pos()
+
         if dist > self._preferred_dist + 40:
-            self._follow_path_to(self.target.pos, dt)
+            self._follow_path_to(approach_target, dt)
         elif dist < self._preferred_dist - 40:
             if dist > 1:
                 self.velocity = -delta.normalize() * self.speed
@@ -399,6 +398,40 @@ class Enemy(Actor):
             if self._shoot_cooldown <= 0 and dist < self._preferred_dist + 120:
                 self._fire()
                 self._shoot_cooldown = self._shoot_rate
+
+    def _calc_approach_pos(self) -> pygame.math.Vector2:
+        """
+        Позиция для подхода к цели — на preferred_dist с угловым смещением.
+        Враги в одной группе расходятся по дуге вокруг игрока.
+        """
+        import math as _math
+        target_pos = self.target.pos
+        delta = target_pos - self.pos
+        if delta.length() < 1:
+            return target_pos
+
+        # базовый угол к цели
+        base_angle = _math.atan2(delta.y, delta.x)
+
+        # смещение по углу — зависит от позиции в группе
+        angle_offset = 0.0
+        if self.patrol_group:
+            alive = [m for m in self.patrol_group.members if m.alive]
+            if len(alive) > 1:
+                try:
+                    idx = alive.index(self)
+                    # раскладываем по дуге ±60° от центра
+                    spread = _math.radians(60)
+                    angle_offset = -spread + (2 * spread / (len(alive) - 1)) * idx
+                except ValueError:
+                    pass
+
+        approach_angle = base_angle + _math.pi + angle_offset  # противоположно — позади игрока
+        # точка на preferred_dist от игрока в этом направлении
+        return pygame.math.Vector2(
+            target_pos.x + _math.cos(approach_angle) * self._preferred_dist,
+            target_pos.y + _math.sin(approach_angle) * self._preferred_dist,
+        )
 
     def _do_patrol(self, dt: float) -> None:
         if not self._patrol_points:
@@ -501,6 +534,32 @@ class Enemy(Actor):
                 self.state        = EnemyState.COVER
                 self._cover_point = None   # ищем снова — вдруг игрок сдвинулся
                 self._peek_timer  = 0.0
+
+    def _do_flank(self, dt: float) -> None:
+        """Обходной манёвр: идём к фланговой точке, потом атакуем."""
+        if self._flank_point is None:
+            self.state = EnemyState.CHASE
+            return
+
+        dist = (self.pos - self._flank_point).length()
+
+        if self._flank_phase == 0:
+            # фаза 0 — движемся к фланговой точке
+            if dist < 48:
+                # добрались — атаковать
+                self._flank_phase = 1
+                self._flank_point = None
+                self.state        = EnemyState.CHASE
+                self._path        = []
+            else:
+                self._follow_path_to(self._flank_point, dt)
+                # по дороге можем стрелять если видим игрока
+                if self.enemy_weapon:
+                    self.enemy_weapon.update(dt, self.pos)
+                    if self.can_see_target():
+                        delta = self.target.pos - self.pos
+                        if delta.length() > 0:
+                            self.enemy_weapon.try_fire(self.pos, delta.normalize())
 
     def _do_suppress(self, dt: float) -> None:
         """Подавляющий огонь — стоим за укрытием, стреляем в last_known_pos с разбросом."""

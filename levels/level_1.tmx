@@ -50,13 +50,9 @@
 </data>
  </layer>
  <objectgroup id="5" name="objects">
-  <object id="1" name="enemy_grunt_1" type="enemy_grunt" x="970.116" y="165.515" width="48" height="48">
+  <object id="1" name="enemy_grunt_1" type="enemy_grunt" x="200.116" y="467.515" width="48" height="48">
    <properties>
     <property name="armor_class" type="int" value="1"/>
-    <property name="patrol_x1" type="float" value="800"/>
-    <property name="patrol_x2" type="float" value="800"/>
-    <property name="patrol_y1" type="float" value="300"/>
-    <property name="patrol_y2" type="float" value="600"/>
    </properties>
   </object>
   <object id="3" name="player_spawn_point_1" type="player_spawn" x="572" y="1024" width="76" height="64"/>
@@ -118,7 +114,7 @@
    <properties>
     <property name="armor_class" type="int" value="2"/>
     <property name="bullet_armor_pen" type="int" value="2"/>
-    <property name="faction" value="MILITARY"/>
+    <property name="faction" value="ELIT"/>
     <property name="helmet_class" type="int" value="3"/>
     <property name="patrol_group" value="squad_alpha"/>
    </properties>
@@ -143,7 +139,7 @@
    <properties>
     <property name="armor_class" type="int" value="2"/>
     <property name="bullet_armor_pen" type="int" value="2"/>
-    <property name="faction" value="MILITARY"/>
+    <property name="faction" value="ELIT"/>
     <property name="helmet_class" type="int" value="3"/>
     <property name="patrol_group" value="squad_alpha"/>
    </properties>
@@ -152,7 +148,7 @@
    <properties>
     <property name="armor_class" type="int" value="2"/>
     <property name="bullet_armor_pen" type="int" value="2"/>
-    <property name="faction" value="MILITARY"/>
+    <property name="faction" value="ELIT"/>
     <property name="helmet_class" type="int" value="3"/>
     <property name="patrol_group" value="squad_alpha"/>
    </properties>
