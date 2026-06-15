@@ -2,6 +2,7 @@ import pygame
 from core.settings import Settings
 from core.managers.loot_manager import LootManager
 from core.managers.faction_manager import Faction
+from core.managers.patrol_group import PatrolGroup
 
 _FACTION_MAP = {
     "player":    Faction.PLAYER,
@@ -47,6 +48,7 @@ class SpawnManager:
         self.enemy_bullets = enemy_bullets
         self.npcs          = npcs
         self.loot          = loot
+        self._patrol_groups: dict[str, PatrolGroup] = {}
 
     # Public API
 
@@ -95,6 +97,7 @@ class SpawnManager:
         patrol = self._parse_patrol(props)
         if patrol:
             e.set_patrol(patrol)
+        self._assign_patrol_group(e, props)
 
     def _spawn_shooter(self, pos, props, player, pathfinder, bullets) -> None:
         from actors.enemy_factory import make_shooter
@@ -138,11 +141,28 @@ class SpawnManager:
         )
         e.pathfinder    = pathfinder
         e.enemies_group = self.enemies
+        if "bullet_armor_pen" in props:
+            if e.enemy_weapon:
+                e.enemy_weapon.stats.armor_pen = props["bullet_armor_pen"]
         if "faction" in props:
             e.faction = _FACTION_MAP.get(props["faction"].lower(), e.faction)
         patrol = self._parse_patrol(props)
         if patrol:
             e.set_patrol(patrol)
+        self._assign_patrol_group(e, props)
+
+    def _assign_patrol_group(self, enemy, props: dict) -> None:
+        """Если в props есть patrol_group — добавить врага в группу (создав если надо)."""
+        group_name = props.get("patrol_group", "").strip()
+        if not group_name:
+            return
+        if group_name not in self._patrol_groups:
+            self._patrol_groups[group_name] = PatrolGroup(group_name)
+        self._patrol_groups[group_name].add(enemy)
+
+    def get_patrol_groups(self) -> list:
+        """Вернуть все группы для update() в game_scene."""
+        return list(self._patrol_groups.values())
 
     def _parse_patrol(self, props: dict) -> list:
         points = []

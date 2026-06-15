@@ -52,6 +52,7 @@ class Renderer:
         player_dead: bool = False,
         debug: bool = False,
         vision_system = None,
+        patrol_groups: list = (),
     ) -> None:
         offset = camera.get_offset()
 
@@ -93,7 +94,7 @@ class Renderer:
         if debug:
             self._draw_debug(screen, camera, player, enemies,
                              enemy_bullets, bullets, world_items,
-                             world_manager, audio_manager)
+                             world_manager, audio_manager, patrol_groups)
 
         if player_dead:
             self._draw_death_screen(screen)
@@ -179,6 +180,7 @@ class Renderer:
     def _draw_debug(
         self, screen, camera, player, enemies,
         enemy_bullets, bullets, world_items, world_manager, audio_manager,
+        patrol_groups=(),
     ) -> None:
         p     = player
         lines = [
@@ -198,6 +200,8 @@ class Renderer:
         for enemy in enemies:
             enemy.draw_debug(screen, offset)
         audio_manager.draw_debug(screen, offset)
+        for pg in patrol_groups:
+            pg.draw_debug(screen, offset)
         world_manager.draw_debug(screen, offset)
         p.draw_debug(screen, offset)
     def _draw_cursor(

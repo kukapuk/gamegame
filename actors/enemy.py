@@ -10,17 +10,19 @@ from core.managers.faction_manager import Faction
 
 
 class EnemyState:
-    IDLE   = "idle"
-    CHASE  = "chase"
-    SEARCH = "search"
-    ALERT  = "alert"
+    IDLE    = "idle"
+    CHASE   = "chase"
+    SEARCH  = "search"
+    ALERT   = "alert"
+    RETREAT = "retreat"
 
 
 DEBUG_COLORS = {
-    EnemyState.IDLE:   (80,  200, 80,  40),
-    EnemyState.CHASE:  (220, 80,  80,  40),
-    EnemyState.SEARCH: (220, 180, 60,  40),
-    EnemyState.ALERT:  (180, 120, 220, 40),
+    EnemyState.IDLE:    (80,  200, 80,  40),
+    EnemyState.CHASE:   (220, 80,  80,  40),
+    EnemyState.SEARCH:  (220, 180, 60,  40),
+    EnemyState.ALERT:   (180, 120, 220, 40),
+    EnemyState.RETREAT: (80,  160, 220, 40),
 }
 
 
@@ -77,11 +79,15 @@ class Enemy(Actor):
         self._path_interval: float = 0.4
         self.pathfinder            = None
 
+        self.patrol_group          = None   # PatrolGroup | None
+        self._retreat_point            = None   # Vector2 — точка отхода
+        self._broken:                  bool  = False  # отступил — больше не атакует
         self.enemies_group         = None
         self._popup_group          = None
         self._separation_radius:   float = 40.0
         self._separation_force:    float = 180.0
 
+        self._provoked_hostile:  bool  = False  # враждебен после провокации безусловно
         self.can_shoot:          bool  = False
         self._shoot_cooldown:    float = 0.0
         self._shoot_rate:        float = 0.0
@@ -136,11 +142,18 @@ class Enemy(Actor):
             self._notify_allies_of_death()
 
     def _notify_allies_of_death(self) -> None:
+        # группа реагирует первой — ближайший идёт проверить
+        if self.patrol_group:
+            self.patrol_group.notify_member_dead(self.pos)
+
+        # общий механизм: враги в радиусе вне группы — ALERT
         if not self.enemies_group:
             return
         for other in self.enemies_group:
             if other is self:
                 continue
+            if other.patrol_group is self.patrol_group and self.patrol_group:
+                continue  # группа уже обработала своих
             if (other.pos - self.pos).length() <= self.VISION_RANGE * 1.5:
                 if other.state == EnemyState.IDLE:
                     other.state              = EnemyState.ALERT
@@ -180,11 +193,18 @@ class Enemy(Actor):
         delta = self.target.pos - self.pos
         if delta.length() > self.vision_range:
             return False
-        angle_to_target = math.degrees(math.atan2(delta.y, delta.x))
-        facing_angle    = math.degrees(math.atan2(self.facing.y, self.facing.x))
-        diff = (angle_to_target - facing_angle + 180) % 360 - 180
-        if abs(diff) > self.vision_angle / 2:
-            return False
+
+        # Спровоцированный нейтрал знает откуда прилетела пуля —
+        # угол зрения не блокирует (но стены всё ещё блокируют)
+        provoked = (target_faction is not None and
+                    (id(self), target_faction) in faction_mgr._provoked)
+        if not provoked:
+            angle_to_target = math.degrees(math.atan2(delta.y, delta.x))
+            facing_angle    = math.degrees(math.atan2(self.facing.y, self.facing.x))
+            diff = (angle_to_target - facing_angle + 180) % 360 - 180
+            if abs(diff) > self.vision_angle / 2:
+                return False
+
         return not self._ray_hits_wall(self.pos, self.target.pos)
 
     # ── Vision / geometry ─────────────────────────────────────────────
@@ -245,23 +265,38 @@ class Enemy(Actor):
             self._facing_angle = math.degrees(math.atan2(self.facing.y, self.facing.x))
 
     def _update_state(self, dt: float) -> None:
+        if self.state == EnemyState.RETREAT:
+            return   # отход не прерывается — только PatrolGroup сбрасывает
+
+        # сломленный бандит при виде игрока снова убегает
+        if self._broken and self.can_see_target():
+            self._start_retreat()
+            return
+
         if self.state == EnemyState.IDLE:
             if self.can_see_target():
                 self._last_known_pos = pygame.math.Vector2(self.target.pos)
                 self.state = EnemyState.CHASE
+                if self.patrol_group:
+                    self.patrol_group.raise_alarm(self.target.pos, source=self)
 
         elif self.state == EnemyState.CHASE:
             if self.can_see_target():
                 self._last_known_pos = pygame.math.Vector2(self.target.pos)
-            else:
+            elif not self._provoked_hostile:
                 self.state = EnemyState.SEARCH
                 self._search_rotate_timer = self.SEARCH_ROTATE_TIME
                 self._path = []
+            else:
+                # спровоцирован — обновляем цель напрямую, не уходим в search
+                self._last_known_pos = pygame.math.Vector2(self.target.pos)
 
         elif self.state == EnemyState.SEARCH:
             if self.can_see_target():
                 self._last_known_pos = pygame.math.Vector2(self.target.pos)
                 self.state = EnemyState.CHASE
+                if self.patrol_group:
+                    self.patrol_group.raise_alarm(self.target.pos, source=self)
 
         elif self.state == EnemyState.ALERT:
             self._alert_timer -= dt
@@ -270,6 +305,8 @@ class Enemy(Actor):
                 if self._alert_react_timer <= 0:
                     self._last_known_pos = pygame.math.Vector2(self.target.pos)
                     self.state = EnemyState.CHASE
+                    if self.patrol_group:
+                        self.patrol_group.raise_alarm(self.target.pos, source=self)
             else:
                 self._alert_react_timer = self.ALERT_REACT_DELAY
             if self._alert_timer <= 0:
@@ -278,6 +315,9 @@ class Enemy(Actor):
     # ── AI behaviours ─────────────────────────────────────────────────
 
     def _ai_grunt(self, dt: float) -> None:
+        if self.state == EnemyState.RETREAT:
+            self._do_retreat(dt)
+            return
         if self.state == EnemyState.IDLE:
             self._do_patrol(dt)
         elif self.state == EnemyState.CHASE:
@@ -289,6 +329,9 @@ class Enemy(Actor):
             self._do_alert_rotate(dt)
 
     def _ai_shooter(self, dt: float) -> None:
+        if self.state == EnemyState.RETREAT:
+            self._do_retreat(dt)
+            return
         if self.state == EnemyState.IDLE:
             self._do_patrol(dt)
             return
@@ -318,7 +361,9 @@ class Enemy(Actor):
             self.enemy_weapon.update(dt, self.pos)
             if dist < self._preferred_dist + 120:
                 direction = delta.normalize() if dist > 0 else pygame.math.Vector2(1, 0)
-                self.enemy_weapon.try_fire(self.pos, direction)
+                fired = self.enemy_weapon.try_fire(self.pos, direction)
+                if not fired and self._provoked_hostile:
+                    print(f"[DBG] no fire: reloading={self.enemy_weapon.reloading} cooldown={self.enemy_weapon._fire_cooldown:.2f} mag={self.enemy_weapon.mag_current} on_fire={self.enemy_weapon.on_fire} bullet_group={self._bullet_group}")
         else:
             # legacy путь
             self._shoot_cooldown = max(0.0, self._shoot_cooldown - dt)
@@ -356,6 +401,31 @@ class Enemy(Actor):
         self._facing_angle += self.ROTATE_SPEED * 0.3 * dt
         angle_rad   = math.radians(self._facing_angle)
         self.facing = pygame.math.Vector2(math.cos(angle_rad), math.sin(angle_rad))
+
+    def _start_retreat(self) -> None:
+        """Запустить отход от игрока."""
+        self.state = EnemyState.RETREAT
+        self._path = []
+        if self.target:
+            delta = self.pos - self.target.pos
+            if delta.length() > 1:
+                self._retreat_point = self.pos + delta.normalize() * 600
+
+    def _do_retreat(self, dt: float) -> None:
+        """Бежать к retreat_point, при достижении — стать IDLE."""
+        if self._retreat_point is None:
+            # точка не задана — просто бежим от игрока
+            delta = self.pos - self.target.pos
+            if delta.length() > 1:
+                self.velocity = delta.normalize() * self.speed * 1.3
+            return
+        dist = (self.pos - self._retreat_point).length()
+        if dist < self.tile_size:
+            self.velocity.update(0, 0)
+            self.state          = EnemyState.IDLE
+            self._retreat_point = None
+        else:
+            self._follow_path_to(self._retreat_point, dt)
 
     # ── Combat ────────────────────────────────────────────────────────
 

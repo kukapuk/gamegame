@@ -93,6 +93,7 @@ class GameScene:
 
         self.player, self.weapon, self.camera, self.hud = \
             self.level_loader.load(self.FIRST_LEVEL)
+        self._patrol_groups = self.spawn.get_patrol_groups()
 
         self.vision.load_level(self.world.level)
         self._assign_blood_group()
@@ -161,6 +162,7 @@ class GameScene:
             player_dead     = self.player_dead,
             debug           = self.debug,
             vision_system   = self.vision,
+            patrol_groups   = self._patrol_groups,
         )
 
     # Input
@@ -271,6 +273,8 @@ class GameScene:
         self.audio.update(dt)
         self.loot.update(self.player)
         self.world.update(self.player)
+        for pg in self._patrol_groups:
+            pg.update(dt)
 
         self.vision.set_player_flashlight(self.player.pos, self.weapon.aim_dir)
         self.vision.update(dt)
@@ -327,6 +331,7 @@ class GameScene:
         self.vision.load_level(self.world.level)
         self._assign_blood_group()
         self.player.surface_map = self.world.level.surface_map
+        self._patrol_groups = self.spawn.get_patrol_groups()
 
     def _restart(self) -> None:
         self.player_dead = False
@@ -336,6 +341,7 @@ class GameScene:
         self.vision.load_level(self.world.level)
         self._assign_blood_group()
         self.player.surface_map = self.world.level.surface_map
+        self._patrol_groups = self.spawn.get_patrol_groups()
 
     # Helpers
 
