@@ -202,7 +202,16 @@ class GameScene:
         if inp.dash:
             self.player.try_dash()
         if inp.reload:
+            was_reloading = self.weapon.reloading
             self.weapon.try_reload()
+            if not was_reloading and self.weapon.reloading:
+                wi = self.weapon._weapon_item
+                # радиус звука: глушитель — тише, обычное — 90px (слышно только рядом)
+                radius = 90.0 if (wi and wi.stats.suppressed) else 180.0
+                self.audio.play_at("reload", self.player.pos, radius,
+                                   color=(100, 180, 255))
+                for enemy in self.enemies:
+                    enemy.hear_reload(self.player.pos, radius)
         if inp.unjam:
             self.weapon.try_unjam()
         if inp.use_item:

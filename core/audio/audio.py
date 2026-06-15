@@ -23,6 +23,7 @@ class AudioManager:
     def _load_all(self) -> None:
         self._sounds["gunshot"] = self._generate_gunshot()
         self._sounds["step"]    = self._generate_footstep()
+        self._sounds["reload"]  = self._generate_reload()
 
     def play(self, name: str) -> None:
         if name in self._sounds:
@@ -82,6 +83,29 @@ class AudioManager:
             circle_surf = pygame.Surface((r * 2 + 2, r * 2 + 2), pygame.SRCALPHA)
             pygame.draw.circle(circle_surf, (*color, alpha), (r + 1, r + 1), r, 1)
             surface.blit(circle_surf, (cx - r - 1, cy - r - 1))
+
+    def _generate_reload(self) -> pygame.mixer.Sound:
+        """Щелчок магазина — короткий металлический звук."""
+        sample_rate = 44100
+        duration    = 0.22
+        samples     = int(sample_rate * duration)
+        t           = np.linspace(0, duration, samples, endpoint=False)
+
+        # клик вставки магазина
+        click   = np.random.uniform(-1.0, 1.0, samples) * np.exp(-t * 90.0)
+        # лёгкий скрежет металла
+        scrape  = np.sin(2 * np.pi * 3200 * t) * np.exp(-t * 40.0) * 0.3
+        # глухой удар в конце
+        thud    = np.sin(2 * np.pi * 80 * t) * np.exp(-t * 50.0) * 0.4
+
+        wave = click * 0.5 + scrape + thud
+        wave = np.clip(wave * 0.55, -1.0, 1.0)
+
+        pcm    = (wave * 32767).astype(np.int16)
+        stereo = np.column_stack([pcm, pcm])
+        sound  = pygame.sndarray.make_sound(stereo)
+        sound.set_volume(0.25)
+        return sound
 
     def _generate_gunshot(self) -> pygame.mixer.Sound:
         sample_rate = 44100

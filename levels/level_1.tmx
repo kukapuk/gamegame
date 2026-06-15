@@ -135,7 +135,7 @@
     <property name="slot" value="pouch"/>
    </properties>
   </object>
-  <object id="28" name="enemy_shooter_2" type="enemy_smg" x="1188.39" y="602.578" width="47.2124" height="50.8441">
+  <object id="28" name="enemy_shooter_2" type="enemy_smg" x="1168.39" y="760.578" width="47.2124" height="50.8441">
    <properties>
     <property name="armor_class" type="int" value="2"/>
     <property name="bullet_armor_pen" type="int" value="2"/>

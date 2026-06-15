@@ -192,6 +192,32 @@ class Enemy(Actor):
         self._last_known_pos = pygame.math.Vector2(world_pos)
         self.state = EnemyState.CHASE
 
+    def hear_reload(self, world_pos: pygame.math.Vector2, radius: float) -> None:
+        """
+        Игрок перезаряжается — элита немедленно атакует (push on reload).
+        Обычные враги игнорируют.
+        """
+        from core.managers.faction_manager import Faction
+        if self.faction != Faction.ELITE:
+            return
+        if (self.pos - world_pos).length() > radius:
+            return
+        if self.state == EnemyState.CHASE:
+            # уже в бою — просто форсируем движение к игроку
+            self._last_known_pos = pygame.math.Vector2(self.target.pos)
+            self._cover_cooldown = 0.0   # отменяем укрытие
+            if self.state in (EnemyState.COVER, EnemyState.SUPPRESS):
+                self.state = EnemyState.CHASE
+                self._path = []
+            return
+        # не в бою — поднимаем тревогу и атакуем
+        self._last_known_pos    = pygame.math.Vector2(self.target.pos)
+        self._alert_react_timer = 0.0
+        self.state              = EnemyState.CHASE
+        self._path              = []
+        if self.patrol_group:
+            self.patrol_group.raise_alarm(self.target.pos, source=self)
+
     def take_hit_from_direction(self, bullet_velocity: pygame.math.Vector2) -> None:
         if bullet_velocity.length() == 0:
             return
