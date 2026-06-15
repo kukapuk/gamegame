@@ -94,6 +94,8 @@ class Enemy(Actor):
         self._cover_cooldown:  float   = 0.0    # пауза перед следующим поиском укрытия
         self._suppress_timer:  float   = 0.0    # сколько ещё подавляем
         self._flank_point              = None   # Vector2 — цель обхода
+        self._strafe_dir:      float   = 1.0    # +1 или -1, меняется редко
+        self._strafe_timer:    float   = 0.0
         self._flank_phase:     int     = 0       # 0=идём к точке, 1=атакуем
         self.use_cover:        bool    = False   # включить cover AI (военные/элита)
         self._broken:                  bool  = False  # отступил — больше не атакует
@@ -271,7 +273,12 @@ class Enemy(Actor):
             if 0 < dist < self._separation_radius:
                 push += delta.normalize() * (self._separation_radius - dist)
         if push.length() > 0:
-            self.velocity += push.normalize() * self._separation_force
+            # добавляем как часть velocity, но не превышаем speed
+            sep = push.normalize() * self._separation_force
+            combined = self.velocity + sep
+            if combined.length() > self.speed * 1.4:
+                combined = combined.normalize() * self.speed * 1.4
+            self.velocity = combined
 
     def _follow_path_to(self, destination: pygame.math.Vector2, dt: float) -> None:
         self._path_timer -= dt
@@ -290,8 +297,11 @@ class Enemy(Actor):
 
         next_point = self._path[1] if len(self._path) > 1 else self._path[0]
         delta = next_point - self.pos
-        if delta.length() < self.speed * dt + 4 and len(self._path) > 1:
+        # порог перехода к следующей точке — фиксированный, не зависит от speed
+        if delta.length() < 18 and len(self._path) > 1:
             self._path.pop(0)
+            next_point = self._path[1] if len(self._path) > 1 else self._path[0]
+            delta = next_point - self.pos
         if delta.length() > 1:
             self.velocity = delta.normalize() * self.speed
         else:
@@ -301,8 +311,13 @@ class Enemy(Actor):
 
     def _update_facing(self) -> None:
         if self.velocity.length() > 0.5:
-            self.facing = self.velocity.normalize()
-            self._facing_angle = math.degrees(math.atan2(self.facing.y, self.facing.x))
+            target_facing = self.velocity.normalize()
+            # плавный поворот — lerp 15% в кадр
+            lerp = 0.15
+            new_facing = self.facing + (target_facing - self.facing) * lerp
+            if new_facing.length() > 0.01:
+                self.facing        = new_facing.normalize()
+                self._facing_angle = math.degrees(math.atan2(self.facing.y, self.facing.x))
 
     def _update_state(self, dt: float) -> None:
         if self.state == EnemyState.RETREAT:
@@ -408,8 +423,14 @@ class Enemy(Actor):
                 self.velocity = -delta.normalize() * self.speed
         else:
             if dist > 1:
+                # стрейф — меняем направление каждые 1.5-2.5 сек
+                self._strafe_timer -= dt
+                if self._strafe_timer <= 0:
+                    import random
+                    self._strafe_dir   = random.choice([-1.0, 1.0])
+                    self._strafe_timer = random.uniform(1.5, 2.5)
                 perp = pygame.math.Vector2(-delta.normalize().y, delta.normalize().x)
-                self.velocity = perp * self.speed * 0.6
+                self.velocity = perp * self._strafe_dir * self.speed * 0.55
 
         if self.enemy_weapon:
             # новый путь — через EnemyWeapon
