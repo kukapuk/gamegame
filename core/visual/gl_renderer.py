@@ -213,13 +213,18 @@ void main() {
 # ── Pass 4: Composite ─────────────────────────────────────────────────────────
 _FRAG_COMPOSITE = """
 #version 330 core
-uniform sampler2D u_fov;          // результат pass 1
-uniform sampler2D u_bloom;        // результат pass 3
+uniform sampler2D u_fov;
+uniform sampler2D u_bloom;
 
-uniform float u_bloom_strength;   // интенсивность bloom
-uniform float u_ca_strength;      // chromatic aberration (0..1)
+uniform float u_bloom_strength;
+uniform float u_ca_strength;
 uniform float u_time;
 uniform vec2  u_resolution;
+
+// цветовая коррекция
+uniform vec3  u_shadow_color;     // тинт теней  (тёплый)
+uniform vec3  u_light_color;      // тинт света   (холодный)
+uniform float u_color_grading;    // интенсивность коррекции 0..1
 
 in  vec2 uv;
 out vec4 fragColor;
@@ -228,28 +233,81 @@ float rand(vec2 co) {
     return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
+// перевод в HSL и обратно для насыщенности
+vec3 rgb2hsl(vec3 c) {
+    float mx = max(c.r, max(c.g, c.b));
+    float mn = min(c.r, min(c.g, c.b));
+    float l  = (mx + mn) * 0.5;
+    if (mx == mn) return vec3(0.0, 0.0, l);
+    float d = mx - mn;
+    float s = l > 0.5 ? d / (2.0 - mx - mn) : d / (mx + mn);
+    float h;
+    if      (mx == c.r) h = (c.g - c.b) / d + (c.g < c.b ? 6.0 : 0.0);
+    else if (mx == c.g) h = (c.b - c.r) / d + 2.0;
+    else                h = (c.r - c.g) / d + 4.0;
+    return vec3(h / 6.0, s, l);
+}
+
+float hue2rgb(float p, float q, float t) {
+    if (t < 0.0) t += 1.0;
+    if (t > 1.0) t -= 1.0;
+    if (t < 1.0/6.0) return p + (q-p)*6.0*t;
+    if (t < 1.0/2.0) return q;
+    if (t < 2.0/3.0) return p + (q-p)*(2.0/3.0 - t)*6.0;
+    return p;
+}
+
+vec3 hsl2rgb(vec3 c) {
+    if (c.y == 0.0) return vec3(c.z);
+    float q = c.z < 0.5 ? c.z*(1.0+c.y) : c.z+c.y - c.z*c.y;
+    float p = 2.0*c.z - q;
+    return vec3(hue2rgb(p,q,c.x+1.0/3.0),
+                hue2rgb(p,q,c.x),
+                hue2rgb(p,q,c.x-1.0/3.0));
+}
+
 void main() {
     // ── Chromatic aberration ───────────────────────────────────────────
-    vec2 center = vec2(0.5);
-    vec2 dir    = (uv - center);
-    float ca    = u_ca_strength * 0.012;
+    vec2  dir = uv - 0.5;
+    float ca  = u_ca_strength * 0.012;
 
-    float r = texture(u_fov, uv + dir * ca * 1.0).r;
-    float g = texture(u_fov, uv               ).g;
-    float b = texture(u_fov, uv - dir * ca * 1.0).b;
+    float r = texture(u_fov, uv + dir * ca).r;
+    float g = texture(u_fov, uv           ).g;
+    float b = texture(u_fov, uv - dir * ca).b;
     vec4 color = vec4(r, g, b, 1.0);
 
     // ── Bloom ADD ─────────────────────────────────────────────────────
-    vec3 bloom  = texture(u_bloom, uv).rgb;
-    color.rgb  += bloom * u_bloom_strength;
+    color.rgb += texture(u_bloom, uv).rgb * u_bloom_strength;
+
+    // ── Цветовая коррекция ────────────────────────────────────────────
+    if (u_color_grading > 0.0) {
+        // яркость пикселя — мера освещённости
+        float lum = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+
+        // shadow zone: lum 0..0.35  → тёплый тинт
+        // light zone:  lum 0.55..1  → холодный тинт
+        // midtones:    плавный переход
+        float shadow_t = 1.0 - smoothstep(0.0, 0.45, lum);
+        float light_t  = smoothstep(0.45, 0.85, lum);
+
+        vec3 graded = color.rgb;
+        graded = mix(graded, graded * u_shadow_color, shadow_t * u_color_grading);
+        graded = mix(graded, graded * u_light_color,  light_t  * u_color_grading);
+
+        // небольшое повышение насыщенности в освещённых зонах
+        vec3 hsl = rgb2hsl(graded);
+        hsl.y   *= 1.0 + light_t * 0.25;
+        graded   = hsl2rgb(hsl);
+
+        color.rgb = graded;
+    }
 
     // ── Виньетка ──────────────────────────────────────────────────────
     float vig  = 1.0 - smoothstep(0.45, 0.85, length(uv - 0.5) * 1.4);
     color.rgb *= 0.85 + 0.15 * vig;
 
     // ── Зернистость ───────────────────────────────────────────────────
-    float noise = rand(uv + fract(u_time * 0.07)) * 0.03 - 0.015;
-    color.rgb  += noise;
+    color.rgb += rand(uv + fract(u_time * 0.07)) * 0.03 - 0.015;
 
     fragColor = color;
 }
@@ -285,6 +343,14 @@ class GLRenderer:
     BLOOM_THRESHOLD = 0.55    # порог яркости для bloom
     BLOOM_STRENGTH  = 0.45    # интенсивность bloom
     HAZE_STRENGTH   = 0.0     # heat haze — включается через set_haze()
+
+    # цветовая коррекция
+    # тени — тёплые (чуть оранжево-коричневые)
+    SHADOW_COLOR    = (1.12, 0.95, 0.80)
+    # свет фонарика — холодный (чуть голубоватый)
+    LIGHT_COLOR     = (0.88, 0.95, 1.10)
+    # интенсивность эффекта
+    COLOR_GRADING   = 0.55
 
     def __init__(self, settings) -> None:
         self.sw = settings.screen_width
@@ -367,9 +433,12 @@ class GLRenderer:
         self.prog_blur_v['u_resolution'].value = bres
         self.prog_blur_v['u_tex'].value        = 0
 
-        self.prog_composite['u_fov'].value           = 0
-        self.prog_composite['u_bloom'].value         = 1
-        self.prog_composite['u_bloom_strength'].value= self.BLOOM_STRENGTH
+        self.prog_composite['u_fov'].value            = 0
+        self.prog_composite['u_bloom'].value          = 1
+        self.prog_composite['u_bloom_strength'].value = self.BLOOM_STRENGTH
+        self.prog_composite['u_shadow_color'].value   = self.SHADOW_COLOR
+        self.prog_composite['u_light_color'].value    = self.LIGHT_COLOR
+        self.prog_composite['u_color_grading'].value  = self.COLOR_GRADING
 
     # ── Данные уровня ─────────────────────────────────────────────────────────
 
