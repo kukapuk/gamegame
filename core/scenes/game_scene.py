@@ -251,6 +251,8 @@ class GameScene:
             pos = pygame.mouse.get_pos()
             self.hud.handle_mouse_motion(pos)
             self.hud.update_world_hover(pos, self.world_items, self.camera.get_offset())
+        if inp.scroll_zoom != 0:
+            self.camera.change_zoom(inp.scroll_zoom)
 
         return "running"
 

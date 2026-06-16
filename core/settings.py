@@ -23,7 +23,12 @@ class Settings:
     # Weapon
     weapon_width: int = 20
     weapon_height: int = 8
-    weapon_offset: int = 20
+    weapon_offset: int = 12
+    # Camera zoom
+    zoom_default: float = 1.0
+    zoom_min: float = 0.5
+    zoom_max: float = 2.0
+    zoom_step: float = 0.1
     weapon_color: tuple = (220, 180, 80)
 
     # Bullet

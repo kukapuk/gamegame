@@ -37,15 +37,39 @@ class Player(Actor):
         self.surface_map: dict = {}
         self.faction  = Faction.PLAYER
 
-        # загружаем спрайт
+        # загружаем спрайт-шит и нарезаем кадры (4 кадра по 32x32)
+        # кадр 0 — покой, 1 и 2 — движение, 3 — рывок
         import os
         _path = os.path.join(os.path.dirname(__file__),
                              '..', 'assets', 'actors', 'player.png')
+        sz = settings.player_size
         if os.path.exists(_path):
             raw = pygame.image.load(_path).convert_alpha()
-            sz  = settings.player_size
-            self.image = pygame.transform.smoothscale(raw, (sz, sz))
-            self.rect  = self.image.get_rect(center=pos)
+            frame_w = raw.get_width() // 4  # 32px при sheet 128x32
+            frame_h = raw.get_height()      # 32px
+            # нарезаем и масштабируем все 4 кадра до player_size
+            self._anim_frames: list[pygame.Surface] = [
+                pygame.transform.smoothscale(
+                    raw.subsurface(pygame.Rect(i * frame_w, 0, frame_w, frame_h)),
+                    (sz, sz)
+                )
+                for i in range(4)
+            ]
+        else:
+            # запасной вариант: одноцветные квадраты
+            self._anim_frames = []
+            for _ in range(4):
+                surf = pygame.Surface((sz, sz), pygame.SRCALPHA)
+                surf.fill(settings.player_color)
+                self._anim_frames.append(surf)
+
+        self._anim_frame_idx: int   = 0   # текущий кадр внутри цикла
+        self._anim_timer: float     = 0.0
+        self._anim_walk_speed: float = 0.15  # секунд на кадр при ходьбе
+        self._anim_run_speed: float  = 0.10  # секунд на кадр при беге
+
+        self.image = self._anim_frames[0]
+        self.rect  = self.image.get_rect(center=pos)
 
         self.stats    = Stats()
         self.speed    = self.stats.speed
@@ -275,10 +299,51 @@ class Player(Actor):
             self._step_timer = 0.0
             self._emit_step(radius)
 
+    def _update_animation(self, dt: float) -> None:
+        """
+        Обновляет кадр спрайта в зависимости от состояния игрока.
+
+        Логика:
+          - рывок (_is_dashing)        → кадр 3 (статично, без смены)
+          - стоит (движение == 0)      → кадр 0 (покой, статично)
+          - движется (ходьба / бег)    → цикл кадров 1 → 2 → 1 → 2 …
+        """
+        if not self._anim_frames:
+            return
+
+        is_moving = self._move_dir.length() > 0
+
+        if self._is_dashing:
+            # рывок: фиксированный 4-й кадр (индекс 3)
+            self._anim_frame_idx = 3
+            self._anim_timer     = 0.0
+        elif not is_moving:
+            # покой: 1-й кадр (индекс 0)
+            self._anim_frame_idx = 0
+            self._anim_timer     = 0.0
+        else:
+            # движение: чередуем кадры 1 и 2
+            speed = self._anim_run_speed if self.is_sprinting else self._anim_walk_speed
+            self._anim_timer += dt
+            if self._anim_timer >= speed:
+                self._anim_timer -= speed
+                # переключаем между индексами 1 и 2
+                self._anim_frame_idx = 1 if self._anim_frame_idx != 1 else 2
+
+        old_center = self.rect.center
+        frame = self._anim_frames[self._anim_frame_idx]
+        # флип по горизонтали когда смотрим влево
+        facing_left = self.facing.x < 0
+        if facing_left:
+            frame = pygame.transform.flip(frame, True, False)
+        self.image = frame
+        self.rect  = self.image.get_rect(center=old_center)
+
     def update(self, dt: float, walls: pygame.sprite.Group = None) -> None:
         self._handle_input()
         self._update_dash(dt)
         self._update_stamina(dt)
         self._update_footsteps(dt)
         self._update_timed_use(dt)
+        self._update_animation(dt)
         super().update(dt, walls)

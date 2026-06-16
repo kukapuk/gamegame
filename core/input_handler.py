@@ -37,6 +37,7 @@ class InputResult:
     unjam: bool = False
     use_item: bool = False
     hud_key: int = -1    # любая клавиша при открытом рюкзаке (для grid_ui Ctrl-поворота)
+    scroll_zoom: int = 0  # +1 приблизить, -1 отдалить, 0 без изменений
 
 
 class InputHandler:
@@ -121,6 +122,9 @@ class InputHandler:
                     result.lmb_down = True
                 elif event.button == 3:
                     result.rmb_down = True
+
+            elif event.type == pygame.MOUSEWHEEL:
+                result.scroll_zoom = 1 if event.y > 0 else -1
 
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:

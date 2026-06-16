@@ -20,6 +20,12 @@ class Camera:
         self.half_h    = settings.screen_height // 2
         self.smoothing = 0.12
 
+        # zoom
+        self.zoom:      float = settings.zoom_default
+        self._zoom_min: float = settings.zoom_min
+        self._zoom_max: float = settings.zoom_max
+        self._zoom_step: float = settings.zoom_step
+
         # shake
         self._shake_intensity: float = 0.0
         self._shake_timer:     float = 0.0
@@ -52,6 +58,13 @@ class Camera:
         target_y = target.rect.centery - self.half_h
         self.offset.x += (target_x - self.offset.x) * self.smoothing
         self.offset.y += (target_y - self.offset.y) * self.smoothing
+
+    def change_zoom(self, direction: int) -> None:
+        """direction: +1 приблизить, -1 отдалить."""
+        self.zoom = round(
+            max(self._zoom_min, min(self._zoom_max, self.zoom + direction * self._zoom_step)),
+            2,
+        )
 
     def apply(self, rect: pygame.Rect) -> pygame.Rect:
         sx = self.offset.x + self._shake_offset.x

@@ -22,6 +22,11 @@ class Renderer:
         self._death_font_big = pygame.font.SysFont("monospace", 72, bold=True)
         self._death_font_sm  = pygame.font.SysFont("monospace", 24)
 
+        # буфер для зума — мировая часть рисуется сюда, потом масштабируется
+        self._world_surf = pygame.Surface(
+            (settings.screen_width, settings.screen_height), pygame.SRCALPHA
+        )
+
         pygame.mouse.set_visible(False)
 
     # Public entry point
@@ -55,42 +60,59 @@ class Renderer:
         patrol_groups: list = (),
     ) -> None:
         offset = camera.get_offset()
+        zoom   = camera.zoom
 
-        screen.fill(self.s.bg_color)
-        level.draw_floor(screen, offset)
+        # --- мировая сцена рисуется в буфер ---
+        world = self._world_surf
+        world.fill(self.s.bg_color)
+        level.draw_floor(world, offset)
 
-        # кровь и гильзы рисуются поверх пола, но под акторами
+        # кровь и гильзы — под акторами
         if blood_drops:
             for drop in blood_drops:
-                screen.blit(drop.image, drop.rect.move(-offset.x, -offset.y))
+                world.blit(drop.image, drop.rect.move(-offset.x, -offset.y))
         if casings:
             for casing in casings:
-                screen.blit(casing.image, casing.rect.move(-offset.x, -offset.y))
+                world.blit(casing.image, casing.rect.move(-offset.x, -offset.y))
 
-        # FOV floor layer — после пола, ДО спрайтов
+        # FOV floor layer
         if vision_system is not None:
-            vision_system.render_floor_layer(screen, offset, debug=debug)
+            vision_system.render_floor_layer(world, offset, debug=debug)
 
-        self._draw_sprites(screen, camera, level, world_items, npcs, enemies,
+        self._draw_sprites(world, camera, level, world_items, npcs, enemies,
                            enemy_bullets, bullets, player, weapon,
                            vision_system=vision_system, debug=debug)
-        self._draw_enemy_hp_bars(screen, camera, enemies,
+        self._draw_enemy_hp_bars(world, camera, enemies,
                                    vision_system=vision_system, debug=debug)
 
-        # FOV sprite layer — поверх спрайтов (силуэты видны)
+        # FOV sprite layer
         if vision_system is not None:
-            vision_system.render_sprite_layer(screen, offset, debug=debug)
+            vision_system.render_sprite_layer(world, offset, debug=debug)
 
         if popups:
             for popup in popups:
-                screen.blit(popup.image, popup.rect.move(-offset.x, -offset.y))
+                world.blit(popup.image, popup.rect.move(-offset.x, -offset.y))
 
-        hud.draw_world_hover(screen, offset)
-        loot_manager.draw_hint(screen, offset)
-        world_manager.draw(screen, offset)
+        hud.draw_world_hover(world, offset)
+        loot_manager.draw_hint(world, offset)
+        world_manager.draw(world, offset)
+        self._draw_npc_hint(world, camera, world_manager)
 
-        self._draw_npc_hint(screen, camera, world_manager)
+        # --- масштабируем буфер и блитим на экран ---
+        screen.fill((0, 0, 0))
+        if zoom == 1.0:
+            screen.blit(world, (0, 0))
+        else:
+            sw, sh = self.s.screen_width, self.s.screen_height
+            scaled_w = round(sw * zoom)
+            scaled_h = round(sh * zoom)
+            scaled = pygame.transform.scale(world, (scaled_w, scaled_h))
+            # центрируем — «зум к центру экрана»
+            bx = (sw - scaled_w) // 2
+            by = (sh - scaled_h) // 2
+            screen.blit(scaled, (bx, by))
 
+        # --- HUD и оверлеи поверх (без зума) ---
         hud.draw(screen, i_hold_progress=i_hold_progress, weapon=weapon, player=player)
 
         if debug:
@@ -103,11 +125,13 @@ class Renderer:
 
         dialog_manager.draw(screen)
         self._draw_cursor(screen, weapon, hud, player, offset)
-        # FPS всегда виден
         fps_surf = self._font_save_hint.render(
             f"{self.clock.get_fps():.0f} fps", True, (120, 120, 120))
         screen.blit(fps_surf, (self.s.screen_width - fps_surf.get_width() - 8, 8))
-        # display.flip() — handled by GLRenderer in app.py
+        # zoom hint
+        zoom_surf = self._font_save_hint.render(
+            f"zoom {zoom:.1f}x", True, (90, 90, 90))
+        screen.blit(zoom_surf, (self.s.screen_width - zoom_surf.get_width() - 8, 24))
 
     # ------------------------------------------------------------------ #
     # Private helpers
@@ -146,8 +170,20 @@ class Renderer:
                 continue
             screen.blit(sprite.image, camera.apply(sprite.rect))
 
-        # игрок всегда
+        # игрок и оружие: порядок зависит от стороны прицеливания
+        # оружие слева (facing_left) → рисуем оружие ДО игрока (за ним)
+        # оружие справа             → рисуем оружие ПОСЛЕ игрока (поверх)
+        weapon_facing_left = (
+            weapon.has_weapon and weapon.aim_dir.x < 0
+        )
+
+        if weapon_facing_left and weapon.has_weapon:
+            screen.blit(weapon.image, camera.apply(weapon.rect))
+
         screen.blit(player.image, camera.apply(player.rect))
+
+        if not weapon_facing_left and weapon.has_weapon:
+            screen.blit(weapon.image, camera.apply(weapon.rect))
 
         # оружие врагов — вместе с врагом
         for enemy in enemies:
@@ -155,9 +191,6 @@ class Renderer:
                 continue
             if enemy.weapon_image is not None and enemy.weapon_rect is not None:
                 screen.blit(enemy.weapon_image, camera.apply(enemy.weapon_rect))
-
-        if weapon.has_weapon:
-            screen.blit(weapon.image, camera.apply(weapon.rect))
 
     def _draw_enemy_hp_bars(
         self, screen: pygame.Surface, camera, enemies: pygame.sprite.Group,
