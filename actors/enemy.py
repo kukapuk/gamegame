@@ -125,6 +125,10 @@ class Enemy(Actor):
         self._weapon_h:    int   = 0
         self._weapon_color: tuple = (160, 160, 160)
 
+        # Sprite Stacking (Step 3) - lazily built on first draw
+        self.sprite_stack = None
+        self.stack_angle  = 0.0
+
         self.vision_range: float = self.VISION_RANGE
         self.vision_angle: float = self.VISION_ANGLE
 
@@ -692,6 +696,36 @@ class Enemy(Actor):
 
     # ── Debug ─────────────────────────────────────────────────────────
 
+
+    # ── Sprite Stacking (ШАГ 3) ───────────────────────────────────────
+
+    def build_sprite_stack(self) -> None:
+        """Строит SpriteStack из текущего цвета image (вызвать после factory)."""
+        from core.visual.sprite_stack import make_colored_stack
+        # Берём цвет из центра image (там нарисован прямоугольник)
+        color = self.color if hasattr(self, 'color') else (220, 60, 60)
+        self.sprite_stack = make_colored_stack(
+            color      = color,
+            size       = self.rect.width,
+            num_layers = 8,
+            layer_step = 2.0,
+        )
+
+    def _update_stack_angle(self) -> None:
+        import math
+        if self.facing.length() > 0:
+            rad = math.atan2(-self.facing.y, self.facing.x)
+            self.stack_angle = math.degrees(rad) - 90.0
+
+    def draw_stacked(self, surface: pygame.Surface, cx: float, cy: float) -> None:
+        """Рисует sprite stack врага. Строит стек лениво если нужно."""
+        if self.sprite_stack is None:
+            self.build_sprite_stack()
+        if self.sprite_stack is not None:
+            self.sprite_stack.draw(surface, cx, cy, self.stack_angle)
+        else:
+            surface.blit(self.image, self.image.get_rect(center=(cx, cy)))
+
     def draw_debug(self, surface: pygame.Surface, camera_offset: pygame.math.Vector2) -> None:
         super().draw_debug(surface, camera_offset)
         self._draw_vision_cone(surface, camera_offset)
@@ -757,4 +791,5 @@ class Enemy(Actor):
             self._ai_update(dt)
             self._apply_separation()
         super().update(dt, walls)
+        self._update_stack_angle()
         self._update_weapon_visual()

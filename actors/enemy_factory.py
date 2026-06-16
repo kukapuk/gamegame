@@ -22,6 +22,7 @@ def make_grunt(pos, target, armor_class: int = 0, groups: list = ()) -> Enemy:
     """Грант — ближний бой, без стрельбы."""
     e = Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
     e.faction = Faction.BANDIT
+    e.build_sprite_stack()
     return e
 
 
@@ -37,6 +38,7 @@ def make_shooter(
 ) -> Enemy:
     """Shooter с пистолетом (одиночный огонь)."""
     e = Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
+    e.color = (180, 80, 220)
     e.image.fill((180, 80, 220))
     e.helmet_class  = helmet_class
     e.stats.max_hp  = 40
@@ -54,6 +56,7 @@ def make_shooter(
     stats = pistol_stats()
     stats.armor_pen = bullet_armor_pen
     _attach_weapon(e, stats)
+    e.build_sprite_stack()
     return e
 
 
@@ -67,6 +70,7 @@ def make_smg_shooter(
 ) -> Enemy:
     """Враг с ПП — автоматический огонь, много пуль."""
     e = Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
+    e.color = (180, 120, 60)
     e.image.fill((180, 120, 60))
     e.helmet_class  = helmet_class
     e.hp = e.max_hp = 35
@@ -80,6 +84,7 @@ def make_smg_shooter(
     e._weapon_color = (180, 120, 60)
     e.faction = Faction.BANDIT
     _attach_weapon(e, smg_stats())
+    e.build_sprite_stack()
     return e
 
 
@@ -93,6 +98,7 @@ def make_rifle_shooter(
 ) -> Enemy:
     """Военный с автоматом — очередь из 3 пуль."""
     e = Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
+    e.color = (60, 100, 60)
     e.image.fill((60, 100, 60))
     e.helmet_class  = helmet_class
     e.stats.max_hp  = 55
@@ -108,6 +114,7 @@ def make_rifle_shooter(
     e.faction    = Faction.MILITARY
     e.use_cover  = True
     _attach_weapon(e, assault_rifle_stats())
+    e.build_sprite_stack()
     return e
 
 
@@ -121,6 +128,7 @@ def make_shotgun_shooter(
 ) -> Enemy:
     """Бандит с дробовиком — мощный вблизи."""
     e = Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
+    e.color = (150, 80, 40)
     e.image.fill((150, 80, 40))
     e.helmet_class  = helmet_class
     e.hp = e.max_hp = 45
@@ -134,6 +142,7 @@ def make_shotgun_shooter(
     e._weapon_color = (150, 80, 40)
     e.faction = Faction.BANDIT
     _attach_weapon(e, shotgun_stats())
+    e.build_sprite_stack()
     return e
 
 
@@ -147,6 +156,7 @@ def make_sniper(
 ) -> Enemy:
     """Снайпер — высокий урон, большая дистанция."""
     e = Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
+    e.color = (40, 60, 90)
     e.image.fill((40, 60, 90))
     e.helmet_class  = helmet_class
     e.stats.max_hp  = 50
@@ -163,4 +173,5 @@ def make_sniper(
     e.faction    = Faction.ELITE
     e.use_cover  = True
     _attach_weapon(e, sniper_stats())
+    e.build_sprite_stack()
     return e

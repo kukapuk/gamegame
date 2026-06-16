@@ -70,6 +70,8 @@ class Level:
             if surf:
                 scaled = pygame.transform.scale(surf, (ts, ts))
                 wall.image = scaled
+            # ШАГ 4: строим sprite stack сразу после загрузки тайла
+            wall.build_sprite_stack()
 
     def _load_objects(self, layer: pytmx.TiledObjectGroup) -> None:
         for obj in layer:

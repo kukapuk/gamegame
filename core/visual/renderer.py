@@ -10,6 +10,13 @@ class Renderer:
     Вызов из GameScene:
         renderer.draw(screen, ctx)
     где ctx — RenderContext с данными кадра.
+
+    ШАГ 1 — Y-sort:
+        Все «живые» объекты (игрок, враги, NPC, предметы на земле)
+        сортируются по нижнему краю rect (rect.bottom) перед отрисовкой.
+        Это даёт правильное перекрытие: кто ниже на экране — тот ближе к камере.
+        Стены по-прежнему рисуются отдельно (до акторов).
+        Пули рисуются после всех акторов — они «в воздухе».
     """
 
     def __init__(self, settings: Settings, clock: pygame.time.Clock) -> None:
@@ -24,7 +31,9 @@ class Renderer:
 
         pygame.mouse.set_visible(False)
 
+    # ------------------------------------------------------------------ #
     # Public entry point
+    # ------------------------------------------------------------------ #
 
     def draw(
         self,
@@ -59,7 +68,7 @@ class Renderer:
         screen.fill(self.s.bg_color)
         level.draw_floor(screen, offset)
 
-        # кровь и гильзы рисуются поверх пола, но под акторами
+        # кровь и гильзы — поверх пола, под акторами
         if blood_drops:
             for drop in blood_drops:
                 screen.blit(drop.image, drop.rect.move(-offset.x, -offset.y))
@@ -103,11 +112,10 @@ class Renderer:
 
         dialog_manager.draw(screen)
         self._draw_cursor(screen, weapon, hud, player, offset)
-        # FPS всегда виден
+
         fps_surf = self._font_save_hint.render(
             f"{self.clock.get_fps():.0f} fps", True, (120, 120, 120))
         screen.blit(fps_surf, (self.s.screen_width - fps_surf.get_width() - 8, 8))
-        # display.flip() — handled by GLRenderer in app.py
 
     # ------------------------------------------------------------------ #
     # Private helpers
@@ -119,45 +127,101 @@ class Renderer:
         vision_system=None, debug=False,
     ) -> None:
         vs = vision_system if (vision_system and not debug) else None
+        offset = camera.get_offset()
 
-        for sprite in level.walls:
-            screen.blit(sprite.image, camera.apply(sprite.rect))
+        # --- собираем всех акторов в один список для Y-sort ---
+        # ШАГ 4: стены тоже входят в Y-sort — рисуются как экструдированные блоки
+        # Каждый элемент: (y_key, draw_fn)
+        # y_key = rect.bottom — чем ниже на экране, тем позже рисуется (ближе к зрителю)
+        draw_list = []  # list of (bottom_y, callable)
 
-        # предметы на земле — скрыть если не видно
+        # стены — экструдированные блоки в Y-sort
+        for wall in level.walls:
+            r = wall.rect
+            def draw_wall(s=screen, w=wall, r=r):
+                from core.visual.sprite_stack import draw_shadow
+                scr = camera.apply(r)
+                stack_h = w.SS_NUM_LAYERS * w.SS_LAYER_STEP
+                cx, cy = scr.centerx, int(scr.centery + stack_h // 2)
+                # тень под стеной
+                draw_shadow(s, cx, cy, radius_x=scr.width // 2 + 4,
+                            radius_y=6, alpha=70)
+                w.draw_stacked(s, cx, cy)
+            # Y-ключ = bottom стены — стены рисуются как объекты с глубиной
+            draw_list.append((r.bottom, draw_wall))
+
+        # предметы на земле
         for sprite in world_items:
             if vs and not vs.is_visible(sprite.rect.center):
                 continue
-            screen.blit(sprite.image, camera.apply(sprite.rect))
+            r = sprite.rect
+            draw_list.append((r.bottom, lambda s=screen, img=sprite.image, rect=r: s.blit(img, camera.apply(rect))))
 
-        # NPC — скрыть если не видно
+        # NPC
         for npc in npcs:
             if vs and not vs.is_visible(npc.rect.center):
                 continue
-            screen.blit(npc.image, camera.apply(npc.rect))
-            npc.draw_name(screen, camera.get_offset())
+            r = npc.rect
+            draw_list.append((r.bottom, lambda s=screen, n=npc, r=r: (
+                s.blit(n.image, camera.apply(r)),
+                n.draw_name(s, offset),
+            )))
 
-        # пули всегда видны (они в воздухе, их видно)
-        for sprite in [*enemy_bullets.sprites(), *bullets.sprites()]:
-            screen.blit(sprite.image, camera.apply(sprite.rect))
-
-        # враги — скрыть если не видно
-        for sprite in enemies.sprites():
-            if vs and not vs.is_visible(sprite.rect.center):
-                continue
-            screen.blit(sprite.image, camera.apply(sprite.rect))
-
-        # игрок всегда
-        screen.blit(player.image, camera.apply(player.rect))
-
-        # оружие врагов — вместе с врагом
-        for enemy in enemies:
+        # враги + их оружие (рисуем вместе как одну запись)
+        for enemy in enemies.sprites():
             if vs and not vs.is_visible(enemy.rect.center):
                 continue
-            if enemy.weapon_image is not None and enemy.weapon_rect is not None:
-                screen.blit(enemy.weapon_image, camera.apply(enemy.weapon_rect))
+            r = enemy.rect
+            def draw_enemy(s=screen, e=enemy, r=r):
+                from core.visual.sprite_stack import draw_shadow
+                scr = camera.apply(r)
+                cx, cy = scr.centerx, scr.centery
+                # тень под врагом
+                draw_shadow(s, cx, cy + scr.height // 4,
+                            radius_x=scr.width // 2 + 2, radius_y=5, alpha=80)
+                if hasattr(e, 'draw_stacked'):
+                    # x_shear: наклон стека по горизонтальной составляющей facing
+                    shear = getattr(e, 'facing', pygame.math.Vector2(0,1)).x * 0.6
+                    e.sprite_stack and e.sprite_stack.draw(
+                        s, cx, cy, e.stack_angle, x_shear=shear)
+                    if e.sprite_stack is None:
+                        e.draw_stacked(s, cx, cy)
+                else:
+                    s.blit(e.image, scr)
+                if e.weapon_image is not None and e.weapon_rect is not None:
+                    s.blit(e.weapon_image, camera.apply(e.weapon_rect))
+            draw_list.append((r.bottom, draw_enemy))
 
-        if weapon.has_weapon:
-            screen.blit(weapon.image, camera.apply(weapon.rect))
+        # игрок + оружие игрока (тоже единая запись)
+        # ШАГ 2+5: sprite stacking + тень + x_shear для игрока
+        pr = player.rect
+        def draw_player(s=screen, p=player, r=pr):
+            from core.visual.sprite_stack import draw_shadow
+            scr_rect = camera.apply(r)
+            cx = scr_rect.centerx
+            cy = scr_rect.centery
+            # тень
+            draw_shadow(s, cx, cy + scr_rect.height // 4,
+                        radius_x=scr_rect.width // 2 + 2, radius_y=5, alpha=100)
+            if hasattr(p, 'sprite_stack') and p.sprite_stack is not None:
+                shear = p.facing.x * 0.6
+                p.sprite_stack.draw(s, cx, cy, p.stack_angle, x_shear=shear)
+            elif hasattr(p, 'draw_stacked'):
+                p.draw_stacked(s, cx, cy)
+            else:
+                s.blit(p.image, scr_rect)
+            if weapon.has_weapon:
+                s.blit(weapon.image, camera.apply(weapon.rect))
+        draw_list.append((pr.bottom, draw_player))
+
+        # --- сортируем по Y и рисуем ---
+        draw_list.sort(key=lambda x: x[0])
+        for _, fn in draw_list:
+            fn()
+
+        # --- пули всегда поверх акторов (они летят «в воздухе») ---
+        for sprite in [*enemy_bullets.sprites(), *bullets.sprites()]:
+            screen.blit(sprite.image, camera.apply(sprite.rect))
 
     def _draw_enemy_hp_bars(
         self, screen: pygame.Surface, camera, enemies: pygame.sprite.Group,
@@ -223,6 +287,7 @@ class Renderer:
             f"world_items: {len(world_items)}",
             f"enemy_bullets: {len(enemy_bullets)}",
             f"level: {getattr(world_manager.level, 'path', '?')}",
+            "[STEP 1] Y-sort: ON",
         ]
         for i, line in enumerate(lines):
             surf = self._font_debug.render(line, True, (180, 220, 180))
@@ -237,6 +302,7 @@ class Renderer:
         cover_system.draw_debug(screen, offset, player.pos, player.walls if hasattr(player, "walls") else None)
         world_manager.draw_debug(screen, offset)
         p.draw_debug(screen, offset)
+
     def _draw_cursor(
         self,
         screen: pygame.Surface,
@@ -271,7 +337,6 @@ class Renderer:
             pygame.draw.rect(screen, (20, 20, 20),
                              (mx - size // 2, my - size // 2, size, size))
 
-        # иконка крадущегося режима
         if player.is_crouching:
             font = pygame.font.SysFont("monospace", 11)
             lbl  = font.render("[C]", True, (100, 180, 255))

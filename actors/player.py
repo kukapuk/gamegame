@@ -1,3 +1,5 @@
+import math
+import os
 import pygame
 from actors.actor import Actor
 from items.stats import Stats
@@ -7,6 +9,13 @@ from core.settings import Settings
 from core.managers.faction_manager import Faction
 
 LEGS_SPEED_MULT = 0.6
+
+# ── Sprite Stacking параметры игрока (MagicaVoxel export) ────────────
+# Экспорт из MagicaVoxel: вертикальная полоска слоёв, каждый слой = ширина спрайта
+# Слои идут сверху вниз = от верхушки модели к подошве
+SS_NUM_LAYERS  = 21      # кол-во слоёв в экспорте MagicaVoxel
+SS_LAYER_STEP  = 1.5     # пикселей между слоями
+SS_LAYER_SIZE  = 32      # масштаб каждого слоя на экране
 
 
 class StepEvent:
@@ -20,10 +29,9 @@ class Player(Actor):
     Human-controlled actor.
     WASD — движение, Shift — спринт, Space — dash, Ctrl — крадёмся.
 
-    Debuff конечностей:
-      arms_damaged — spread x2, reload_time x1.5
-      legs_damaged — скорость x0.6, dash недоступен
-    Снимается heal_limbs() (surgical_kit).
+    ШАГ 2: добавлен sprite stacking.
+      self.sprite_stack — SpriteStack, рисуется в renderer вместо self.image.
+      self.stack_angle  — угол в градусах (обновляется по facing каждый кадр).
     """
 
     def __init__(self, pos: tuple[float, float], settings: Settings, groups: list = ()) -> None:
@@ -37,15 +45,27 @@ class Player(Actor):
         self.surface_map: dict = {}
         self.faction  = Faction.PLAYER
 
-        # загружаем спрайт
-        import os
+        # ── загружаем спрайт и строим sprite stack ─────────────────────
+        self.sprite_stack = None
+        self.stack_angle  = 0.0   # будет обновляться в update()
+
         _path = os.path.join(os.path.dirname(__file__),
                              '..', 'assets', 'actors', 'player.png')
         if os.path.exists(_path):
             raw = pygame.image.load(_path).convert_alpha()
             sz  = settings.player_size
+            # Обычный image оставляем для hitbox/rect, но рисовать будем стек
             self.image = pygame.transform.smoothscale(raw, (sz, sz))
             self.rect  = self.image.get_rect(center=pos)
+
+            # Строим стек из оригинального 64×64 спрайта
+            from core.visual.sprite_stack import SpriteStack
+            self.sprite_stack = SpriteStack.from_image(
+                raw,
+                num_layers  = SS_NUM_LAYERS,
+                layer_step  = SS_LAYER_STEP,
+                layer_size  = SS_LAYER_SIZE,
+            )
 
         self.stats    = Stats()
         self.speed    = self.stats.speed
@@ -67,8 +87,8 @@ class Player(Actor):
         self.arms_damaged: bool = False
         self.legs_damaged: bool = False
 
-        self._using_item             = None  # TimedConsumable | None
-        self._using_slot             = None  # слот откуда берём
+        self._using_item             = None
+        self._using_slot             = None
         self.use_timer: float        = 0.0
         self.use_time_total: float   = 0.0
 
@@ -80,8 +100,31 @@ class Player(Actor):
         self.backpack = GridInventory(cols=8, rows=6)
         self.active_weapon_slot: int = 0
 
+    # ── Sprite Stack helpers ───────────────────────────────────────────
+
+    def _update_stack_angle(self) -> None:
+        """Конвертируем facing в угол для pygame.transform.rotate."""
+        if self.facing.length() > 0:
+            # atan2 даёт угол от оси X; pygame rotate — против часовой
+            rad = math.atan2(-self.facing.y, self.facing.x)
+            self.stack_angle = math.degrees(rad) - 90.0
+
+    def draw_stacked(
+        self,
+        surface: pygame.Surface,
+        cx: float,
+        cy: float,
+    ) -> None:
+        """Рисует sprite stack игрока. Вызывается из renderer."""
+        if self.sprite_stack is None:
+            # fallback: обычный спрайт
+            surface.blit(self.image, self.image.get_rect(center=(cx, cy)))
+            return
+        self.sprite_stack.draw(surface, cx, cy, self.stack_angle)
+
+    # ── Inventory / weapon helpers ─────────────────────────────────────
+
     def start_timed_use(self, item, slot) -> bool:
-        """Начать применение TimedConsumable. False если уже применяем."""
         if self._using_item is not None:
             return False
         self._using_item    = item
@@ -232,16 +275,15 @@ class Player(Actor):
             )
 
     def _get_surface_mult(self) -> float:
-        """Множитель радиуса шага по типу поверхности под игроком."""
         ts  = self.settings.grid_size
         tx  = int(self.pos.x) // ts
         ty  = int(self.pos.y) // ts
         surface = self.surface_map.get((tx, ty), "default")
         return {
-            "grass":    0.5,    # трава — тише обычного
-            "concrete": 1.0,    # бетон — норма
-            "asphalt":  1.3,    # асфальт — громче
-            "metal":    2.2,    # металл — очень громко
+            "grass":    0.5,
+            "concrete": 1.0,
+            "asphalt":  1.3,
+            "metal":    2.2,
             "default":  1.0,
         }.get(surface, 1.0)
 
@@ -281,4 +323,5 @@ class Player(Actor):
         self._update_stamina(dt)
         self._update_footsteps(dt)
         self._update_timed_use(dt)
+        self._update_stack_angle()   # ← новое: обновляем угол стека
         super().update(dt, walls)
