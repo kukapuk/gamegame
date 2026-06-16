@@ -21,7 +21,9 @@ def _attach_weapon(e: Enemy, stats) -> None:
 def make_grunt(pos, target, armor_class: int = 0, groups: list = ()) -> Enemy:
     """Грант — ближний бой, без стрельбы."""
     e = Enemy(pos=pos, target=target, armor_class=armor_class, groups=groups)
-    e.faction = Faction.BANDIT
+    e.faction        = Faction.BANDIT
+    e.vision_range   = 200.0
+    e.reaction_delay = 1.2
     return e
 
 
@@ -49,7 +51,9 @@ def make_shooter(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 22, 7
     e._weapon_color = (180, 100, 220)
-    e.faction = Faction.BANDIT
+    e.faction        = Faction.BANDIT
+    e.vision_range   = 240.0
+    e.reaction_delay = 0.9
 
     stats = pistol_stats()
     stats.armor_pen = bullet_armor_pen
@@ -78,7 +82,9 @@ def make_smg_shooter(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 20, 6
     e._weapon_color = (180, 120, 60)
-    e.faction = Faction.BANDIT
+    e.faction        = Faction.BANDIT
+    e.vision_range   = 260.0
+    e.reaction_delay = 0.8
     _attach_weapon(e, smg_stats())
     return e
 
@@ -105,8 +111,10 @@ def make_rifle_shooter(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 26, 7
     e._weapon_color = (60, 100, 60)
-    e.faction    = Faction.MILITARY
-    e.use_cover  = True
+    e.faction        = Faction.MILITARY
+    e.use_cover      = True
+    e.vision_range   = 420.0
+    e.reaction_delay = 0.35
     _attach_weapon(e, assault_rifle_stats())
     return e
 
@@ -132,7 +140,9 @@ def make_shotgun_shooter(
     e._ai_update      = e._ai_shooter
     e._weapon_w, e._weapon_h = 24, 8
     e._weapon_color = (150, 80, 40)
-    e.faction = Faction.BANDIT
+    e.faction        = Faction.BANDIT
+    e.vision_range   = 220.0
+    e.reaction_delay = 1.0
     _attach_weapon(e, shotgun_stats())
     return e
 
@@ -154,7 +164,8 @@ def make_sniper(
     e.speed         = 70.0
     e.can_shoot     = True
     e._preferred_dist = 400.0
-    e.vision_range    = 450.0
+    e.vision_range    = 560.0
+    e.reaction_delay  = 0.1
     e._bullet_group   = bullet_group
     e._all_sprites    = all_sprites
     e._ai_update      = e._ai_shooter
