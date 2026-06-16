@@ -43,10 +43,10 @@ class Enemy(Actor):
 
     KNOCKBACK_FRICTION = 8.0
     VISION_ANGLE       = 125.0
-    VISION_RANGE       = 560.0
+    VISION_RANGE       = 280.0   # базовый — переопределяется в фабриках
     SEARCH_ROTATE_TIME = 2.5
     ALERT_TIMEOUT      = 10.0
-    ALERT_REACT_DELAY  = 0.4
+    ALERT_REACT_DELAY  = 0.4   # базовый — переопределяется в фабриках
     ROTATE_SPEED       = 90.0
 
     def __init__(
@@ -80,6 +80,7 @@ class Enemy(Actor):
         self._search_rotate_timer: float = 0.0
         self._alert_timer:         float = 0.0
         self._alert_react_timer:   float = 0.0
+        self.reaction_delay:       float = self.ALERT_REACT_DELAY  # задержка реакции
         self._facing_angle:        float = 0.0
 
         self._path:          list  = []
@@ -191,8 +192,9 @@ class Enemy(Actor):
             return
         if (self.pos - world_pos).length() > radius:
             return
-        self._last_known_pos = pygame.math.Vector2(world_pos)
-        self.state = EnemyState.CHASE
+        self._last_known_pos    = pygame.math.Vector2(world_pos)
+        self._alert_react_timer = self.reaction_delay
+        self.state = EnemyState.ALERT
 
     def hear_reload(self, world_pos: pygame.math.Vector2, radius: float) -> None:
         """

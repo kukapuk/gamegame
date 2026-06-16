@@ -188,7 +188,7 @@ def pistol_stats() -> EnemyWeaponStats:
     return EnemyWeaponStats(
         damage=12, armor_pen=0, bullet_speed=340.0,
         bullet_color=(255, 220, 80),
-        spread_deg=5.0, mag_size=12, reload_time=2.0,
+        spread_deg=9.0, mag_size=12, reload_time=2.2,
         fire_mode=FireMode.SINGLE, fire_rate=1.0,
         shot_sound_radius=300.0, reload_sound_radius=70.0,
     )
@@ -199,7 +199,7 @@ def smg_stats() -> EnemyWeaponStats:
     return EnemyWeaponStats(
         damage=8, armor_pen=0, bullet_speed=360.0,
         bullet_color=(200, 220, 100),
-        spread_deg=7.0, mag_size=30, reload_time=2.2,
+        spread_deg=12.0, mag_size=30, reload_time=2.2,
         fire_mode=FireMode.AUTO, fire_rate=0.12,
         shot_sound_radius=360.0, reload_sound_radius=80.0,
     )
