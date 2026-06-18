@@ -12,6 +12,8 @@ from core.visual.renderer import Renderer
 from core.managers.cover_system import cover_system
 from core.visual.vision import VisionSystem
 from core.input_handler import InputHandler
+from core.visual.snow import SnowSystem
+from core.visual.impact_particles import impact_particles
 
 
 class GameScene:
@@ -88,6 +90,7 @@ class GameScene:
 
         self.renderer      = Renderer(settings, clock)
         self.input_handler = InputHandler(settings)
+        self.snow          = SnowSystem(settings)
 
         self.debug       = False
         self.player_dead = False
@@ -100,6 +103,7 @@ class GameScene:
         self.vision.load_level(self.world.level)
         self._assign_blood_group()
         self.player.surface_map = self.world.level.surface_map
+        self.snow.enabled = self.world.level.snow_enabled
 
     def _assign_blood_group(self) -> None:
         self.player._blood_group = self.blood_drops
@@ -165,6 +169,7 @@ class GameScene:
             debug           = self.debug,
             vision_system   = self.vision,
             patrol_groups   = self._patrol_groups,
+            snow            = self.snow,
         )
 
     # Input
@@ -292,6 +297,8 @@ class GameScene:
         self.camera.update(dt)
         self.vision.set_player_flashlight(self.player.pos, self.weapon.aim_dir)
         self.vision.update(dt, cam_offset=self.camera.get_offset())
+        self.snow.update(dt)
+        impact_particles.update(dt)
 
         self._propagate_sound_events()
         self._propagate_footsteps()
@@ -351,6 +358,7 @@ class GameScene:
         self.player.surface_map = self.world.level.surface_map
         self._patrol_groups = self.spawn.get_patrol_groups()
         cover_system.build(self.world.level.walls)
+        self.snow.enabled = self.world.level.snow_enabled
 
     def _restart(self) -> None:
         self.player_dead = False
@@ -362,8 +370,7 @@ class GameScene:
         self.player.surface_map = self.world.level.surface_map
         self._patrol_groups = self.spawn.get_patrol_groups()
         cover_system.build(self.world.level.walls)
-
-    # Helpers
+        self.snow.enabled = self.world.level.snow_enabled
 
     def _sync_weapon(self) -> None:
         item = self.player.get_active_weapon()

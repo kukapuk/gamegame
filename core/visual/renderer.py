@@ -1,5 +1,6 @@
 import pygame
 from core.settings import Settings
+from core.visual.impact_particles import impact_particles
 
 
 class Renderer:
@@ -58,6 +59,7 @@ class Renderer:
         debug: bool = False,
         vision_system = None,
         patrol_groups: list = (),
+        snow = None,
     ) -> None:
         offset = camera.get_offset()
         zoom   = camera.zoom
@@ -93,6 +95,9 @@ class Renderer:
             for popup in popups:
                 world.blit(popup.image, popup.rect.move(-offset.x, -offset.y))
 
+        # частицы попаданий (стена / броня / плоть)
+        impact_particles.draw(world, offset)
+
         hud.draw_world_hover(world, offset)
         loot_manager.draw_hint(world, offset)
         world_manager.draw(world, offset)
@@ -113,6 +118,9 @@ class Renderer:
             screen.blit(scaled, (bx, by))
 
         # --- HUD и оверлеи поверх (без зума) ---
+        if snow is not None:
+            snow.draw(screen)
+
         hud.draw(screen, i_hold_progress=i_hold_progress, weapon=weapon, player=player)
 
         if debug:

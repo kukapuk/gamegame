@@ -3,6 +3,7 @@ import pygame
 from combat.calculator import resolve_hit, HitZone
 from core.settings import Settings
 from core.managers.faction_manager import faction_mgr, Faction, Relation
+from core.visual.impact_particles import impact_particles
 
 
 def _armor_protects_limbs(player) -> bool:
@@ -88,12 +89,18 @@ class CombatManager:
                         settings        = self.s,
                     )
                     if enemy.helmet_class == 0:
+                        impact_particles.spawn_flesh_hit(bullet.pos, bullet.velocity)
                         enemy.take_damage(enemy.hp)
                     else:
+                        if head_result.penetrated:
+                            impact_particles.spawn_flesh_hit(bullet.pos, bullet.velocity)
+                        else:
+                            impact_particles.spawn_armor_hit(bullet.pos, bullet.velocity)
                         enemy.take_damage(head_result.damage)
                 else:
                     enemy.take_damage(result.damage)
                     if result.penetrated:
+                        impact_particles.spawn_flesh_hit(bullet.pos, bullet.velocity)
                         bleed_chance = {
                             HitZone.TORSO: 0.15,
                             HitZone.ARMS:  0.30,
@@ -101,6 +108,8 @@ class CombatManager:
                         }.get(result.zone, 0.0)
                         if bleed_chance > 0 and random.random() < bleed_chance:
                             enemy.apply_bleeding()
+                    else:
+                        impact_particles.spawn_armor_hit(bullet.pos, bullet.velocity)
 
                 enemy.take_hit_from_direction(bullet.velocity)
                 if result.stopping_effect > 0 and bullet.velocity.length() > 0:
@@ -120,12 +129,14 @@ class CombatManager:
 
         for bullet in normal_bullets:
             if pygame.sprite.spritecollide(bullet, walls, False):
+                impact_particles.spawn_wall_hit(bullet.pos, bullet.velocity)
                 bullet.kill()
 
         for bullet in ricochet_bullets:
             hit_walls = pygame.sprite.spritecollide(bullet, walls, False)
             if hit_walls:
                 if not bullet.do_ricochet(hit_walls[0].rect):
+                    impact_particles.spawn_wall_hit(bullet.pos, bullet.velocity)
                     bullet.kill()
 
     def _check_contact_damage(self, player, enemies) -> None:

@@ -24,6 +24,8 @@ class Level:
         self.lights:  list[dict] = []
         # (tile_x, tile_y) → surface_type str
         self.surface_map: dict[tuple[int,int], str] = {}
+        # Включать ли снег на этом уровне (задаётся через map property в Tiled)
+        self.snow_enabled: bool = False
 
         self._load(path)
 
@@ -32,6 +34,10 @@ class Level:
         self.cols      = tiled.width
         self.rows      = tiled.height
         self.tile_size = tiled.tilewidth
+
+        # Читаем map properties (задаются в Tiled: Map → Map Properties)
+        props = tiled.properties or {}
+        self.snow_enabled = bool(props.get("snow_enabled", False))
 
         for layer in tiled.layers:
             if isinstance(layer, pytmx.TiledTileLayer):
