@@ -4,6 +4,7 @@ from combat.calculator import resolve_hit, HitZone
 from core.settings import Settings
 from core.managers.faction_manager import faction_mgr, Faction, Relation
 from core.visual.impact_particles import impact_particles
+from core.visual.bullet_decals import bullet_decals
 
 
 def _armor_protects_limbs(player) -> bool:
@@ -130,6 +131,7 @@ class CombatManager:
         for bullet in normal_bullets:
             if pygame.sprite.spritecollide(bullet, walls, False):
                 impact_particles.spawn_wall_hit(bullet.pos, bullet.velocity)
+                bullet_decals.spawn(bullet.pos, bullet.velocity)
                 bullet.kill()
 
         for bullet in ricochet_bullets:
@@ -137,6 +139,7 @@ class CombatManager:
             if hit_walls:
                 if not bullet.do_ricochet(hit_walls[0].rect):
                     impact_particles.spawn_wall_hit(bullet.pos, bullet.velocity)
+                    bullet_decals.spawn(bullet.pos, bullet.velocity)
                     bullet.kill()
 
     def _check_contact_damage(self, player, enemies) -> None:

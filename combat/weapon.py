@@ -6,6 +6,7 @@ from combat.bullet import Bullet
 from items.weapon_item import WeaponItem, DIRTY_THRESHOLD, FILTHY_THRESHOLD
 from items.ammo import AmmoItem
 from actors.effects import Casing, Magazine
+from core.visual.muzzle_smoke import muzzle_smoke
 
 UNJAM_TIME = 0.5   # секунд на передёргивание затвора
 
@@ -195,6 +196,11 @@ class Weapon(pygame.sprite.Sprite):
         self._first_shot    = False
         self._silence_timer = 0.0
         self._recoil_offset = s.recoil_distance
+
+        # дым у ствола
+        muzzle_pos = self.owner.pos + offset
+        muzzle_smoke.spawn(muzzle_pos, self.aim_dir,
+                           suppressed=getattr(s, "suppressed", False))
 
         # гильза
         if self.casings_group is not None:

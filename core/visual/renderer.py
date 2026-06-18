@@ -1,6 +1,8 @@
 import pygame
 from core.settings import Settings
 from core.visual.impact_particles import impact_particles
+from core.visual.bullet_decals import bullet_decals
+from core.visual.muzzle_smoke import muzzle_smoke
 
 
 class Renderer:
@@ -69,6 +71,9 @@ class Renderer:
         world.fill(self.s.bg_color)
         level.draw_floor(world, offset)
 
+        # следы пуль — под всем, прямо на полу
+        bullet_decals.draw(world, offset)
+
         # кровь и гильзы — под акторами
         if blood_drops:
             for drop in blood_drops:
@@ -97,6 +102,9 @@ class Renderer:
 
         # частицы попаданий (стена / броня / плоть)
         impact_particles.draw(world, offset)
+
+        # дым у ствола — поверх всего в мире
+        muzzle_smoke.draw(world, offset)
 
         hud.draw_world_hover(world, offset)
         loot_manager.draw_hint(world, offset)

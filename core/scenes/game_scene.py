@@ -14,6 +14,8 @@ from core.visual.vision import VisionSystem
 from core.input_handler import InputHandler
 from core.visual.snow import SnowSystem
 from core.visual.impact_particles import impact_particles
+from core.visual.bullet_decals import bullet_decals
+from core.visual.muzzle_smoke import muzzle_smoke
 
 
 class GameScene:
@@ -299,6 +301,8 @@ class GameScene:
         self.vision.update(dt, cam_offset=self.camera.get_offset())
         self.snow.update(dt)
         impact_particles.update(dt)
+        bullet_decals.update(dt)
+        muzzle_smoke.update(dt)
 
         self._propagate_sound_events()
         self._propagate_footsteps()
@@ -359,6 +363,7 @@ class GameScene:
         self._patrol_groups = self.spawn.get_patrol_groups()
         cover_system.build(self.world.level.walls)
         self.snow.enabled = self.world.level.snow_enabled
+        bullet_decals.clear()
 
     def _restart(self) -> None:
         self.player_dead = False
@@ -371,6 +376,7 @@ class GameScene:
         self._patrol_groups = self.spawn.get_patrol_groups()
         cover_system.build(self.world.level.walls)
         self.snow.enabled = self.world.level.snow_enabled
+        bullet_decals.clear()
 
     def _sync_weapon(self) -> None:
         item = self.player.get_active_weapon()
