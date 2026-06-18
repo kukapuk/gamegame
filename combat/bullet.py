@@ -2,6 +2,9 @@ import pygame
 import math
 import random
 
+# Длина шлейфа в секундах — сколько истории позиций хранить
+_TRAIL_DURATION = 0.055
+
 
 class Bullet(pygame.sprite.Sprite):
     """
@@ -46,13 +49,28 @@ class Bullet(pygame.sprite.Sprite):
         self.ricochet_damage_mult = ricochet_damage_mult
         self.ricocheted           = False   # можно только один раз
 
+        # шлейф: список (x, y, age) — age растёт, старые удаляются
+        self._trail: list[tuple[float, float, float]] = []
+
     def update(self, dt: float) -> None:
         self.lifetime -= dt
         if self.lifetime <= 0:
             self.kill()
             return
+
+        # сохраняем текущую позицию в шлейф
+        self._trail.append((self.pos.x, self.pos.y, 0.0))
+
         self.pos += self.velocity * dt
         self.rect.center = (round(self.pos.x), round(self.pos.y))
+
+        # обновляем возраст точек шлейфа, удаляем старые
+        alive = []
+        for x, y, age in self._trail:
+            new_age = age + dt
+            if new_age < _TRAIL_DURATION:
+                alive.append((x, y, new_age))
+        self._trail = alive
 
     def do_ricochet(self, wall_rect: pygame.Rect) -> bool:
         """

@@ -663,8 +663,8 @@ class Enemy(Actor):
         Bullet(
             pos=(p.x, p.y),
             direction=direction,
-            speed=sp,
-            lifetime=3.0,
+            speed=sp * 1.9,
+            lifetime=1.6,
             damage=dmg,
             size=6,
             color=col,

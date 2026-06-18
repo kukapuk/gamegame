@@ -5,6 +5,67 @@ from core.visual.bullet_decals import bullet_decals
 from core.visual.muzzle_smoke import muzzle_smoke
 
 
+def _draw_bullet_trail(
+    surface: pygame.Surface,
+    bullet,
+    offset: pygame.math.Vector2,
+) -> None:
+    """
+    Рисует трассерный шлейф за пулей.
+    Линия от хвоста к голове, ширина и яркость убывают к хвосту.
+    """
+    trail = getattr(bullet, "_trail", None)
+    if not trail:
+        return
+
+    from combat.bullet import _TRAIL_DURATION
+
+    # голова — текущая позиция пули
+    head = (round(bullet.pos.x - offset.x), round(bullet.pos.y - offset.y))
+
+    # строим точки: хвост → голова
+    points = []
+    for x, y, age in trail:
+        t = 1.0 - age / _TRAIL_DURATION   # 1 у головы, 0 у хвоста
+        points.append((round(x - offset.x), round(y - offset.y), t))
+    points.append((*head, 1.0))
+
+    if len(points) < 2:
+        return
+
+    r, g, b = bullet.color
+
+    # рисуем сегментами: ширина и альфа убывают к хвосту
+    for i in range(len(points) - 1):
+        x0, y0, t0 = points[i]
+        x1, y1, t1 = points[i + 1]
+
+        # средняя яркость сегмента
+        t_mid  = (t0 + t1) * 0.5
+        alpha  = int(220 * t_mid * t_mid)       # квадратично — резкий хвост
+        width  = max(1, round(bullet.size * t_mid * 0.9))
+
+        if alpha < 8:
+            continue
+
+        # рисуем через Surface с альфой
+        length = max(1, int(((x1 - x0)**2 + (y1 - y0)**2) ** 0.5) + 1)
+        seg = pygame.Surface((length + width * 2, width * 2 + 2), pygame.SRCALPHA)
+        pygame.draw.line(
+            seg,
+            (r, g, b, alpha),
+            (width, width + 1),
+            (length + width, width + 1),
+            width,
+        )
+
+        import math
+        angle = math.degrees(math.atan2(y1 - y0, x1 - x0))
+        rotated = pygame.transform.rotate(seg, -angle)
+        rx, ry = rotated.get_size()
+        surface.blit(rotated, (x0 - rx // 2, y0 - ry // 2))
+
+
 class Renderer:
     """
     Отвечает за весь рендеринг кадра.
@@ -176,7 +237,10 @@ class Renderer:
             screen.blit(npc.image, camera.apply(npc.rect))
             npc.draw_name(screen, camera.get_offset())
 
-        # пули всегда видны (они в воздухе, их видно)
+        # пули — сначала шлейф, потом сам снаряд
+        offset = camera.get_offset()
+        for sprite in [*enemy_bullets.sprites(), *bullets.sprites()]:
+            _draw_bullet_trail(screen, sprite, offset)
         for sprite in [*enemy_bullets.sprites(), *bullets.sprites()]:
             screen.blit(sprite.image, camera.apply(sprite.rect))
 

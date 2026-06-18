@@ -129,8 +129,8 @@ def make_carbine() -> WeaponItem:
         stats=WeaponStats(
             damage=12,
             fire_rate=0.12,
-            bullet_speed=620.0,
-            bullet_lifetime=1.8,
+            bullet_speed=1180.0,
+            bullet_lifetime=1.0,
             armor_pen=2,
             stopping_effect=0.3,
             auto_fire=True,
@@ -170,8 +170,8 @@ def make_shotgun() -> WeaponItem:
         stats=WeaponStats(
             damage=18,
             fire_rate=0.75,
-            bullet_speed=480.0,
-            bullet_lifetime=0.5,
+            bullet_speed=900.0,
+            bullet_lifetime=0.28,
             armor_pen=0,
             stopping_effect=0.85,
             auto_fire=False,
@@ -208,8 +208,8 @@ def make_sniper() -> WeaponItem:
         stats=WeaponStats(
             damage=85,
             fire_rate=1.4,
-            bullet_speed=1100.0,
-            bullet_lifetime=2.5,
+            bullet_speed=1900.0,
+            bullet_lifetime=1.4,
             armor_pen=3,
             stopping_effect=0.1,
             auto_fire=False,
@@ -250,8 +250,8 @@ def make_suppressed_pistol() -> WeaponItem:
         stats=WeaponStats(
             damage=5,
             fire_rate=0.4,
-            bullet_speed=340.0,
-            bullet_lifetime=1.2,
+            bullet_speed=620.0,
+            bullet_lifetime=0.7,
             armor_pen=1,
             stopping_effect=0.1,
             auto_fire=False,
