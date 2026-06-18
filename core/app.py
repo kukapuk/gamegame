@@ -57,7 +57,11 @@ class App:
                 self.gl.destroy()
                 break
             # Финальный GL проход — offscreen → шейдер → экран
-            self.gl.render(self.screen, self._dt)
+            hp_ratio = 1.0
+            if self._state == "game" and self._game:
+                p = self._game.player
+                hp_ratio = p.hp / p.max_hp if p.max_hp > 0 else 1.0
+            self.gl.render(self.screen, self._dt, hp_ratio=hp_ratio)
 
     def _tick(self, dt: float) -> str:
         if self._state == "menu":

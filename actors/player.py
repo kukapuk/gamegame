@@ -85,6 +85,12 @@ class Player(Actor):
         self.is_sprinting: bool    = False
         self.is_crouching: bool    = False
 
+        # шлейф дэша: список (image_copy, pos_copy, age)
+        self.dash_ghosts: list[tuple[pygame.Surface, pygame.math.Vector2, float]] = []
+        self._ghost_timer: float = 0.0
+        self._GHOST_INTERVAL: float = 0.018   # каждые N секунд новый ghost
+        self._GHOST_LIFETIME: float = 0.18    # сколько живёт каждый ghost
+
         self._step_timer: float   = 0.0
         self._pending_steps: list = []
 
@@ -237,12 +243,32 @@ class Player(Actor):
 
     def _update_dash(self, dt: float) -> None:
         self._dash_cooldown = max(0.0, self._dash_cooldown - dt)
+
+        # обновляем возраст ghostов
+        self.dash_ghosts = [
+            (img, pos, age + dt)
+            for img, pos, age in self.dash_ghosts
+            if age + dt < self._GHOST_LIFETIME
+        ]
+
         if self._is_dashing:
             self._dash_timer -= dt
             self.velocity = self._dash_velocity
+
+            # спавним новый ghost с интервалом
+            self._ghost_timer -= dt
+            if self._ghost_timer <= 0:
+                self._ghost_timer = self._GHOST_INTERVAL
+                self.dash_ghosts.append((
+                    self.image.copy(),
+                    pygame.math.Vector2(self.pos),
+                    0.0,
+                ))
+
             if self._dash_timer <= 0:
-                self._is_dashing = False
-                self.velocity    = self._move_dir * self.speed
+                self._is_dashing  = False
+                self._ghost_timer = 0.0
+                self.velocity     = self._move_dir * self.speed
 
     def _update_stamina(self, dt: float) -> None:
         if self._is_dashing:

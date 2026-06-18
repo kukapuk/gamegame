@@ -260,6 +260,20 @@ class Renderer:
         if weapon_facing_left and weapon.has_weapon:
             screen.blit(weapon.image, camera.apply(weapon.rect))
 
+        # шлейф дэша — призраки ДО игрока
+        for ghost_img, ghost_pos, ghost_age in player.dash_ghosts:
+            t = 1.0 - ghost_age / player._GHOST_LIFETIME   # 1→0
+            alpha = int(180 * t * t)
+            if alpha > 4:
+                ghost_surf = ghost_img.copy()
+                ghost_surf.set_alpha(alpha)
+                # голубоватый тинт
+                tint = pygame.Surface(ghost_surf.get_size(), pygame.SRCALPHA)
+                tint.fill((100, 180, 255, int(60 * t)))
+                ghost_surf.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+                gr = ghost_img.get_rect(center=(round(ghost_pos.x), round(ghost_pos.y)))
+                screen.blit(ghost_surf, camera.apply(gr))
+
         screen.blit(player.image, camera.apply(player.rect))
 
         if not weapon_facing_left and weapon.has_weapon:

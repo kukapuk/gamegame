@@ -143,8 +143,17 @@ void main() {
         vec2  lpos = u_lights[i].xy;
         float lr   = u_lights[i].z;
         float ld   = length(worldPos - lpos);
-        if (ld < lr) {
-            light = max(light, (1.0 - pow(ld / lr, 1.6)) * 0.9);
+
+        // мерцание: уникальная фаза для каждого источника
+        float phase   = float(i) * 1.618;                      // золотое сечение → разные фазы
+        float flicker = 1.0
+            - 0.07 * sin(u_time * 7.3  + phase)
+            - 0.05 * sin(u_time * 13.7 + phase * 2.1)
+            - 0.04 * sin(u_time * 3.1  + phase * 0.7);
+        float lr_f = lr * flicker;
+
+        if (ld < lr_f) {
+            light = max(light, (1.0 - pow(ld / lr_f, 1.6)) * 0.9 * flicker);
         }
     }
 
@@ -219,6 +228,7 @@ uniform sampler2D u_bloom;
 uniform float u_bloom_strength;
 uniform float u_ca_strength;
 uniform float u_hit_strength;   // 0..1 — интенсивность красной вспышки по краям
+uniform float u_hp_ratio;       // 0..1 — текущий HP/maxHP (0 = при смерти)
 uniform float u_time;
 uniform vec2  u_resolution;
 
@@ -315,6 +325,17 @@ void main() {
         float rim  = smoothstep(0.3, 1.0, edge);     // начинается с 30% от края
         vec3  red  = vec3(0.85, 0.04, 0.04);
         color.rgb  = mix(color.rgb, red, rim * u_hit_strength * 0.72);
+    }
+
+    // ── Low HP vignette — пульсирующая тёмно-красная виньетка ─────────
+    if (u_hp_ratio < 0.4) {
+        float danger    = 1.0 - u_hp_ratio / 0.4;           // 0→1 при HP 40%→0
+        float pulse     = 0.5 + 0.5 * sin(u_time * (2.5 + danger * 3.0));
+        float intensity = danger * (0.35 + 0.25 * pulse);
+        float edge2     = pow(length((uv - 0.5) * 2.0), 2.2);
+        float rim2      = smoothstep(0.4, 1.1, edge2);
+        vec3  darkred   = vec3(0.55, 0.0, 0.0);
+        color.rgb = mix(color.rgb, darkred, rim2 * intensity);
     }
 
     // ── Зернистость ───────────────────────────────────────────────────
@@ -512,7 +533,7 @@ class GLRenderer:
 
     # ── Рендер ────────────────────────────────────────────────────────────────
 
-    def render(self, surface: pygame.Surface, dt: float = 0.016) -> None:
+    def render(self, surface: pygame.Surface, dt: float = 0.016, hp_ratio: float = 1.0) -> None:
         self._time += dt
 
         # pygame → GL текстура
@@ -561,6 +582,7 @@ class GLRenderer:
         self.prog_composite['u_time'].value         = self._time
         self.prog_composite['u_ca_strength'].value  = self._ca_strength
         self.prog_composite['u_hit_strength'].value = self._hit_strength
+        self.prog_composite['u_hp_ratio'].value     = float(hp_ratio)
 
         self.tex_fov.use(0)
         self.tex_blur_v.use(1)
