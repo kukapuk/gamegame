@@ -218,6 +218,7 @@ uniform sampler2D u_bloom;
 
 uniform float u_bloom_strength;
 uniform float u_ca_strength;
+uniform float u_hit_strength;   // 0..1 — интенсивность красной вспышки по краям
 uniform float u_time;
 uniform vec2  u_resolution;
 
@@ -305,6 +306,16 @@ void main() {
     // ── Виньетка ──────────────────────────────────────────────────────
     float vig  = 1.0 - smoothstep(0.45, 0.85, length(uv - 0.5) * 1.4);
     color.rgb *= 0.85 + 0.15 * vig;
+
+    // ── Hit flash — красный оверлей по краям экрана ───────────────────
+    if (u_hit_strength > 0.0) {
+        // расстояние от края: 0 в центре, 1 у угла
+        vec2  d    = abs(uv - 0.5) * 2.0;           // [0..1] по каждой оси
+        float edge = pow(max(d.x, d.y), 2.5);        // резче к углам
+        float rim  = smoothstep(0.3, 1.0, edge);     // начинается с 30% от края
+        vec3  red  = vec3(0.85, 0.04, 0.04);
+        color.rgb  = mix(color.rgb, red, rim * u_hit_strength * 0.72);
+    }
 
     // ── Зернистость ───────────────────────────────────────────────────
     color.rgb += rand(uv + fract(u_time * 0.07)) * 0.03 - 0.015;
@@ -409,6 +420,8 @@ class GLRenderer:
         self._muzzle_r     = 55.0
         self._ca_strength  = 0.0   # chromatic aberration
         self._ca_decay     = 3.0   # скорость затухания CA
+        self._hit_strength = 0.0   # красная вспышка по краям
+        self._hit_decay    = 4.5   # быстро угасает
         self._haze         = self.HAZE_STRENGTH
         self._time         = 0.0
 
@@ -484,8 +497,9 @@ class GLRenderer:
         self.prog_fov['u_muzzle_dur'].value = duration
 
     def trigger_hit(self, intensity: float = 1.0) -> None:
-        """Вызвать при получении урона — запускает chromatic aberration."""
-        self._ca_strength = min(1.0, self._ca_strength + intensity)
+        """Вызвать при получении урона — запускает chromatic aberration + красную вспышку."""
+        self._ca_strength  = min(1.0, self._ca_strength  + intensity)
+        self._hit_strength = min(1.0, self._hit_strength + intensity * 0.85)
 
     def set_haze(self, strength: float) -> None:
         """Включить/выключить heat haze (0 = выкл)."""
@@ -494,6 +508,7 @@ class GLRenderer:
     def update(self, dt: float) -> None:
         self._muzzle_t    = max(0.0, self._muzzle_t - dt)
         self._ca_strength = max(0.0, self._ca_strength - self._ca_decay * dt)
+        self._hit_strength = max(0.0, self._hit_strength - self._hit_decay * dt)
 
     # ── Рендер ────────────────────────────────────────────────────────────────
 
@@ -543,8 +558,9 @@ class GLRenderer:
         self.ctx.viewport = (0, 0, self.sw, self.sh)
         self.ctx.clear(0.0, 0.0, 0.0, 1.0)
 
-        self.prog_composite['u_time'].value        = self._time
-        self.prog_composite['u_ca_strength'].value = self._ca_strength
+        self.prog_composite['u_time'].value         = self._time
+        self.prog_composite['u_ca_strength'].value  = self._ca_strength
+        self.prog_composite['u_hit_strength'].value = self._hit_strength
 
         self.tex_fov.use(0)
         self.tex_blur_v.use(1)
